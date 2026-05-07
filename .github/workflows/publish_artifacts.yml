@@ -293,16 +293,7 @@ jobs:
           VERSION_OVERRIDE: ${{ needs.derive-version.outputs.version }}
 
       - name: Assemble NPM package
-        run: |
-          VERSION="${{ needs.derive-version.outputs.version }}"
-          mkdir -p dist/npm
-          cp engagement-cloud-sdk/build/dist/js/productionExecutable/engagement-cloud-sdk-html.js dist/npm/
-          cp build/js/packages/engagement-cloud-sdk/kotlin/engagement-cloud-sdk-html.d.ts dist/npm/ 2>/dev/null || true
-          sed -e "s/\"version\": \"0.0.0\"/\"version\": \"$VERSION\"/" \
-              -e "s/@emartech\/engagement-cloud-sdk/@sap\/engagement-cloud-sdk/" \
-              -e "s|https://npm.pkg.github.com|https://registry.npmjs.org|" \
-            engagement-cloud-sdk/npm-package.json > dist/npm/package.json
-          cp README.md dist/npm/
+        run: make assemble-npm-package
 
       - name: Publish to NPM
         if: ${{ env.DRY_RUN != 'true' && (github.event_name == 'push' || inputs.publish_npm == true) }}
@@ -318,10 +309,6 @@ jobs:
             "dist/cdn/$VERSION/engagement-cloud-sdk.js"
           cp engagement-cloud-sdk/build/dist/js/productionExecutable/engagement-cloud-sdk-html.js.map \
             "dist/cdn/$VERSION/engagement-cloud-sdk.js.map" 2>/dev/null || true
-
-          # Copy TypeScript definitions
-          cp build/js/packages/engagement-cloud-sdk/kotlin/engagement-cloud-sdk-html.d.ts \
-            "dist/cdn/$VERSION/engagement-cloud-sdk.d.ts" 2>/dev/null || true
 
           # Copy loader script + sourcemap
           cp engagement-cloud-sdk/build/dist/js/productionExecutable/engagement-cloud-sdk-loader.js \
