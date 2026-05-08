@@ -202,7 +202,7 @@ pipeline-js: check-env
 		-x :composeApp:jsBrowserTest \
 		--no-daemon
 
-assemble-npm-package: check-env
+assemble-npm-package:
 	@mkdir -p dist/npm && \
 	cp engagement-cloud-sdk/build/compileSync/js/main/productionExecutable/kotlin/EngagementCloudSDK-engagement-cloud-sdk.mjs dist/npm/ && \
 	cp engagement-cloud-sdk/build/compileSync/js/main/productionExecutable/kotlin/EngagementCloudSDK-engagement-cloud-sdk.d.mts dist/npm/ && \
