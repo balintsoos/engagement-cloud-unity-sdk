@@ -105,28 +105,43 @@ kotlin {
         generateTypeScriptDefinitions()
 
         compilations["main"].packageJson {
-            customField("name", "@sap/engagement-cloud-sdk")
-            customField("description", "SAP Engagement Cloud SDK for Web")
+            name = "@sap/engagement-cloud-sdk"
+            description = "SAP Engagement Cloud SDK for Web"
             customField("license", "Apache-2.0")
-            customField("repository", mapOf(
-                "type" to "git",
-                "url" to "git+https://github.com/emartech/engagement-cloud-sdk.git"
-            ))
-            customField("publishConfig", mapOf(
-                "registry" to "https://registry.npmjs.org"
-            ))
-            customField("homepage", "https://emartech.github.io/engagement-cloud-sdk/docs/index.html")
-            customField("author", mapOf(
-                "name" to "SAP"
-            ))
-            customField("keywords", listOf(
-                "sap",
-                "engagement-cloud",
-                "sdk",
-                "push-notifications",
-                "in-app-messaging",
-                "analytics"
-            ))
+            customField(
+                "repository", mapOf(
+                    "type" to "git",
+                    "url" to "git+https://github.com/emartech/engagement-cloud-sdk.git"
+                )
+            )
+            customField(
+                "publishConfig", mapOf(
+                    "registry" to "https://registry.npmjs.org"
+                )
+            )
+            customField(
+                "homepage",
+                "https://emartech.github.io/engagement-cloud-sdk/docs/index.html"
+            )
+            customField(
+                "author", mapOf(
+                    "name" to "SAP"
+                )
+            )
+            customField(
+                "keywords", listOf(
+                    "sap",
+                    "engagement-cloud",
+                    "engagement cloud",
+                    "sdk",
+                    "push-notifications",
+                    "push notifications",
+                    "in-app-messaging",
+                    "in app messaging",
+                    "analytics",
+                    "embedded messaging"
+                )
+            )
         }
     }
 

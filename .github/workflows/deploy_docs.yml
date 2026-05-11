@@ -25,7 +25,7 @@ jobs:
       - name: Setup Node.js for Docusaurus
         uses: actions/setup-node@v6.4.0
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Build Docusaurus docs
         working-directory: docs/engagement-cloud-sdk-docs
