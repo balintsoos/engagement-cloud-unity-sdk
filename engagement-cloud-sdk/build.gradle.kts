@@ -106,7 +106,7 @@ kotlin {
 
         compilations["main"].packageJson {
             name = "@sap/engagement-cloud-sdk"
-            description = "SAP Engagement Cloud SDK for Web"
+            customField("description", "SAP Engagement Cloud SDK for Web")
             customField("license", "Apache-2.0")
             customField(
                 "repository", mapOf(
