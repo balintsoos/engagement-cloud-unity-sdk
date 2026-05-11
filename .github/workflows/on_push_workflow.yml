@@ -297,7 +297,7 @@ jobs:
         run: make assemble-npm-package
 
       - name: Publish to GitHub Packages NPM
-        run: npm publish dist/npm/
+        run: npm publish dist/npm/ --tag snapshot
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
