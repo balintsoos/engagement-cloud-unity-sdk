@@ -296,6 +296,10 @@ jobs:
       - name: Assemble NPM package
         run: make assemble-npm-package
 
+      - name: Replace namespace for snapshot NPM release
+        run: |
+          sed 's/@sap\/engagement-cloud-sdk/@emartech\/engagement-cloud-sdk/' engagement-cloud-sdk/build/tmp/jsPublicPackageJson/package.json > dist/npm/package.json
+
       - name: Publish to GitHub Packages NPM
         run: npm publish dist/npm/ --tag snapshot
         env:
