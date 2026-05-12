@@ -86,9 +86,11 @@ class SdkContextTests {
 
     @Test
     fun testSetSdkConfig_shouldClearStoreWhenConfigToSetIsNull() = runTest {
+        sdkContext.setSdkConfig(TEST_CONFIG)
         sdkContext.setSdkConfig(null)
 
         verifySuspend { mockSdkConfigStore.clear() }
+        sdkContext.getSdkConfig() shouldBe null
     }
 
     @Test

@@ -25,7 +25,7 @@ internal class SdkContext(
         config?.let {
             sdkConfigStore.store(config)
             _cachedConfig = config
-        } ?: sdkConfigStore.clear()
+        } ?: clearSdkConfig()
     }
 
     override val currentSdkState = MutableStateFlow(SdkState.UnInitialized)
@@ -35,6 +35,11 @@ internal class SdkContext(
 
     override suspend fun setSdkState(sdkState: SdkState) {
         currentSdkState.value = sdkState
+    }
+
+    private suspend fun clearSdkConfig() {
+        _cachedConfig = null
+        sdkConfigStore.clear()
     }
 }
 
