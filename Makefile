@@ -1,4 +1,4 @@
-.PHONY: build build-pipeline build-android build-ios build-ios-all-archtypes build-js-html build-web check-env clean create-apks help lint pipeline-android pipeline-js pipeline-ios prepare-release prepare-local-spm publish-android publish-ios-spm publish-npm release release-locally stage-maven-central test test-android test-android-firebase test-ios test-sdk-loader test-web add-privacy-manifest-to-frameworks assemble-npm-package
+.PHONY: build build-pipeline build-android build-ios build-ios-all-archtypes build-js-html build-web check-env clean create-apks help lint pipeline-android pipeline-js pipeline-ios prepare-release prepare-local-spm publish-android publish-ios-spm publish-npm release release-locally stage-maven-central test test-android test-android-firebase test-ios test-sdk-loader test-web add-privacy-manifest-to-frameworks assemble-npm-package fix-npm-typescript-brand-fields
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
 
@@ -202,10 +202,15 @@ pipeline-js: check-env
 		-x :composeApp:jsBrowserTest \
 		--no-daemon
 
-assemble-npm-package:
-	@mkdir -p dist/npm && \
-	cp engagement-cloud-sdk/build/compileSync/js/main/productionExecutable/kotlin/EngagementCloudSDK-engagement-cloud-sdk.mjs dist/npm/ && \
-	cp engagement-cloud-sdk/build/compileSync/js/main/productionExecutable/kotlin/EngagementCloudSDK-engagement-cloud-sdk.d.mts dist/npm/ && \
+fix-npm-typescript-brand-fields:
+	@echo "Fixing TypeScript brand fields in .d.mts (making __doNotUseOrImplementIt optional)..."
+	@mkdir -p dist/npm
+	@sed -e 's/readonly __doNotUseOrImplementIt/__doNotUseOrImplementIt?/g' \
+		engagement-cloud-sdk/build/compileSync/js/main/productionExecutable/kotlin/EngagementCloudSDK-engagement-cloud-sdk.d.mts \
+		> dist/npm/EngagementCloudSDK-engagement-cloud-sdk.d.mts
+
+assemble-npm-package: fix-npm-typescript-brand-fields
+	@cp engagement-cloud-sdk/build/compileSync/js/main/productionExecutable/kotlin/EngagementCloudSDK-engagement-cloud-sdk.mjs dist/npm/ && \
 	cp engagement-cloud-sdk/build/compileSync/js/main/productionExecutable/kotlin/EngagementCloudSDK-engagement-cloud-sdk.mjs.map dist/npm/ && \
 	cp engagement-cloud-sdk/build/tmp/jsPublicPackageJson/package.json dist/npm/ && \
 	cp README.md dist/npm/
