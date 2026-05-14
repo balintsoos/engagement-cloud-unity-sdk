@@ -26,7 +26,7 @@ internal class Setup(
     ): Result<Unit> {
         return withContext(sdkContext.sdkDispatcher) {
             runCatchingWithoutCancellation {
-                config.isValid(logger)
+                config.isValid(logger, sdkContext.globalRemoteConfigApplicationCodeValidationRegex)
                 sdkContext.onContactLinkingFailed = onContactLinkingFailed
                 enableOrganizer.enableWithValidation(config)
             }

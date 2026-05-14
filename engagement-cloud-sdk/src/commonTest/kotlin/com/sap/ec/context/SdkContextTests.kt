@@ -102,4 +102,9 @@ class SdkContextTests {
         verifySuspend { mockSdkConfigStore.store(TEST_CONFIG) }
         verifySuspend(VerifyMode.exactly(0)) { mockSdkConfigStore.load() }
     }
+
+    @Test
+    fun testSdkManagementApplicationCodeValidationRegex_shouldBeNullByDefault() {
+        sdkContext.globalRemoteConfigApplicationCodeValidationRegex shouldBe null
+    }
 }

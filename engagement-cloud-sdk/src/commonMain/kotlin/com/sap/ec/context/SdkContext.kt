@@ -16,6 +16,7 @@ internal class SdkContext(
     private val sdkConfigStore: SdkConfigStoreApi<SdkConfig>
 ) : SdkContextApi {
     private var _cachedConfig: SdkConfig? = null
+    override var globalRemoteConfigApplicationCodeValidationRegex: Regex? = null
 
     override suspend fun getSdkConfig(): SdkConfig? {
         return _cachedConfig ?: sdkConfigStore.load().also { _cachedConfig = it }
