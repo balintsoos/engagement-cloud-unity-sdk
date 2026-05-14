@@ -1,17 +1,15 @@
 # Changelog
 
-## [4.0.1]
+## [4.0.2]
 
-### Added
+### Changed
 
-- Privacy manifest for iOS frameworks to comply with Apple's privacy requirements.
+- Modified applicationCode validation to work with new formats
 
 ### Fixed
 
-- In-app messaging: Fixed in-app messages disappearing after Android configuration changes.
-- In-app messaging: Fixed issue with in-app dialog presentation when view already had a parent
-- Embedded messaging: Fixed detail view not showing empty state after disabling embedded messaging.
-- Embedded messaging: Fixed list and detail pane resizing issues.
+- Embedded messaging: Fixed error when user changed between messages rapidly 
+- Setup: Fixed `isEnabled()` not showing correct value because of a cached config.
 
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
