@@ -28,12 +28,12 @@ import com.sap.ec.SdkConstants.SESSION_START_EVENT_NAME
 import com.sap.ec.SdkConstants.TRACK_DEEPLINK_NAME
 import com.sap.ec.SdkConstants.UNLINK_CONTACT_NAME
 import com.sap.ec.SdkConstants.WEBPUSH_CLICKED_EVENT_NAME
-import com.sap.ec.currentPlatform
 import com.sap.ec.core.db.events.EventsDaoApi
 import com.sap.ec.core.log.LogLevel
 import com.sap.ec.core.log.Logger
 import com.sap.ec.core.providers.TimestampProvider
 import com.sap.ec.core.providers.UUIDProvider
+import com.sap.ec.currentPlatform
 import com.sap.ec.mobileengage.embeddedmessaging.models.MessageTagUpdate
 import com.sap.ec.mobileengage.inapp.InAppMessage
 import com.sap.ec.networking.clients.event.model.DeviceEvent
@@ -378,8 +378,9 @@ sealed interface SdkEvent {
                 override val id: String = UUIDProvider().provide(),
                 override val timestamp: Instant = TimestampProvider().provide(),
                 override var nackCount: Int = 0,
-                val name: String = APPLY_GLOBAL_REMOTE_CONFIG_EVENT_NAME
-            ) : Sdk(), OnlineSdkEvent, SetupFlowEvent
+                val name: String = APPLY_GLOBAL_REMOTE_CONFIG_EVENT_NAME,
+                override val applicationCode: String? = null
+            ) : Sdk(), OperationalEvent, SetupFlowEvent
 
             @Serializable
             data class ChangeAppCode(
