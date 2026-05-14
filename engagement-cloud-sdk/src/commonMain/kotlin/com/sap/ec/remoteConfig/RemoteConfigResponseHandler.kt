@@ -45,7 +45,7 @@ internal class RemoteConfigResponseHandler(
         config.globalRemoteConfigApplicationCodeValidationRegex?.let { regexString ->
             sdkContext.globalRemoteConfigApplicationCodeValidationRegex = try {
                 regexString.toRegex()
-            } catch (exception: Exception) {
+            } catch (exception: Throwable) {
                 currentCoroutineContext().ensureActive()
                 sdkLogger.error(
                     "Invalid sdkManagementApplicationCodeValidationRegex: $regexString",
