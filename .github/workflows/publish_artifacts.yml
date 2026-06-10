@@ -136,7 +136,7 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: ${{ env.JAVA_DISTRIBUTION }}
 
-      - uses: gradle/actions/setup-gradle@v6
+      - uses: gradle/actions/setup-gradle@v6.1.0
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -254,7 +254,7 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: ${{ env.JAVA_DISTRIBUTION }}
 
-      - uses: gradle/actions/setup-gradle@v6
+      - uses: gradle/actions/setup-gradle@v6.1.0
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -380,7 +380,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-konan-
 
-      - uses: gradle/actions/setup-gradle@v6
+      - uses: gradle/actions/setup-gradle@v6.1.0
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
