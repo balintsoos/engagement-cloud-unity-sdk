@@ -119,7 +119,6 @@ internal class ContactClient(
                 Result.success(response)
             )
         )
-        sdkLogger.debug("TAG - triggering refresh")
         sdkEventManager.emitEvent(SdkEvent.Internal.EmbeddedMessaging.TriggerRefresh())
     }
 
