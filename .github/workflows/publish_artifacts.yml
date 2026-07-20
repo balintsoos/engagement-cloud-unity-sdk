@@ -93,7 +93,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.value }}
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
 
       - name: Validate and extract version
         id: version
@@ -129,7 +129,7 @@ jobs:
       ANDROID_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
       ANDROID_RELEASE_STORE_FILE_BASE64: ${{ secrets.ANDROID_RELEASE_STORE_FILE_BASE64 }}
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
 
       - uses: actions/setup-java@v5.6.0
         with:
@@ -247,7 +247,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
 
       - uses: actions/setup-java@v5.6.0
         with:
@@ -363,7 +363,7 @@ jobs:
     env:
       SPM_BUILD: release
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-tags: true
 
@@ -478,7 +478,7 @@ jobs:
     needs: [ derive-version, ios-pipeline ]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-tags: true
 
@@ -507,7 +507,7 @@ jobs:
     needs: [ derive-version, android-pipeline, js-pipeline, ios-pipeline, create-tag-fallback ]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
 
       - name: Extract release notes from CHANGELOG
         id: changelog
@@ -593,10 +593,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout SDK repository
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v7.0.1
 
       - name: Clone docs repository
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v7.0.1
         with:
           repository: emartech/engagement-cloud-sdk-docs
           token: ${{ secrets.DOCS_READ_PAT }}
