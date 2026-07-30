@@ -21,6 +21,7 @@ import com.sap.ec.networking.clients.error.ClientExceptionHandler
 import dev.mokkery.MockMode
 import dev.mokkery.answering.calls
 import dev.mokkery.answering.returns
+import dev.mokkery.answering.returnsArgAt
 import dev.mokkery.answering.throws
 import dev.mokkery.every
 import dev.mokkery.everySuspend
@@ -101,6 +102,7 @@ class DeviceClientTests {
         every { mockSdkEventManager.onlineSdkEvents } returns onlineEvents
         mockEventsDao = mock(MockMode.autofill)
         mockClientExceptionHandler = mock(MockMode.autoUnit)
+        every { mockClientExceptionHandler.transformException(any()) } returnsArgAt 0
     }
 
     @AfterTest

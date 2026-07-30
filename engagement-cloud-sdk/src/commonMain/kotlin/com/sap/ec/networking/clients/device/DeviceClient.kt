@@ -92,10 +92,11 @@ internal class DeviceClient(
         if (exception is NetworkIOException) {
             sdkEventManager.emitEvent(sdkEvent)
         } else {
+            val transformedException = clientExceptionHandler.transformException(exception)
             sdkEventManager.emitEvent(
                 SdkEvent.Internal.Sdk.Answer.Response(
                     originId = sdkEvent.id,
-                    Result.failure<Exception>(exception)
+                    Result.failure<Exception>(transformedException)
                 )
             )
         }
