@@ -282,8 +282,6 @@ jobs:
         uses: actions/setup-node@v7.0.0
         with:
           node-version: '24'
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '@emartech'
 
       - name: Install npm dependencies
         run: npm install
@@ -299,6 +297,13 @@ jobs:
       - name: Replace namespace for snapshot NPM release
         run: |
           sed 's/@sap\/engagement-cloud-sdk/@emartech\/engagement-cloud-sdk/' engagement-cloud-sdk/build/tmp/jsPublicPackageJson/package.json > dist/npm/package.json
+
+      - name: Configure GitHub Packages registry
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@emartech'
 
       - name: Publish to GitHub Packages NPM
         run: npm publish dist/npm/ --tag snapshot
