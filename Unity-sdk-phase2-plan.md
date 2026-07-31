@@ -14,6 +14,113 @@ game running on **Apple Silicon macOS** use the Engagement Cloud SDK, with
 in-app messages composited into Unity's own rendering as **`Texture2D`s** rather
 than AppKit windows.
 
+## Phase-1.5 remediation (added 2026-07-31 after prerequisite audit)
+
+Prerequisite verification against `main` (post-commit `ae338c09`) surfaced four
+gaps between the plan as originally written and Phase 1's actual code. Recording
+them here so Sections B–H are implementable as specified.
+
+### Gap 1 — `WrapperInfo` has no writer
+
+- Where: `engagement-cloud-sdk/src/commonMain/kotlin/com/sap/ec/core/wrapper/WrapperInfo.kt:6`.
+- Reality: `internal data class WrapperInfo(platformWrapper, wrapperVersion)`;
+  only ever *read* (via `TypedStorageApi.get(WRAPPER_INFO_KEY, ...)` from
+  `DeviceInfoCollector.macos.kt:78`). No setter, no builder param, not on the
+  framework's Obj-C surface.
+- Section H as written ("existing `WrapperInfo` hook") is not achievable.
+- Remediation (Phase-1.5 patch): add `fun setPlatformWrapper(name: String, version: String)`
+  on `MacosSetupApi` that writes `WrapperInfo(name, version)` through the
+  existing `TypedStorageApi` binding. Shim calls this from `ec_setup` right
+  before `enable(...)`.
+
+### Gap 2 — `InAppPresenterApi` binding is not overridable
+
+- Where: `engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/di/MacosInjection.kt:189`
+  binds `single<InAppPresenterApi> { MacosInAppPresenter(...) }` inside
+  `MacosInjection.macosModules`, loaded unconditionally by
+  `SdkKoinIsolationContext.init()` (`SdkKoinIsolationContext.kt:44`).
+- Reality: there is no entry point that lets an external consumer inject or
+  override a Koin module before init runs.
+- Section C as written ("Koin binding override registered from the shim") is not
+  achievable.
+- Remediation (Phase-1.5 patch): new top-level `object SdkPlatformOverrides`
+  (in `commonMain` under `com.sap.ec.di`) exposing
+  `fun register(modules: List<Module>)`. `SdkKoinIsolationContext.initKoin()`
+  reads that list AFTER `loadPlatformModules()` and appends via
+  `koinApp.koin.loadModules(...)`, so per-Koin `override = true` bindings from
+  Phase 2 win. The shim calls `SdkPlatformOverrides.register(listOf(unityMacosOverrides))`
+  BEFORE anything touches `MacosEngagementCloud` (see Gap 3).
+
+### Gap 3 — `MacosEngagementCloud`'s `init {}` fires on first class touch
+
+- Where: `engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/MacosEngagementCloud.kt:31-38`
+  calls `SdkKoinIsolationContext.init()` inside the singleton's `init { }` block.
+- Reality: any access (`MacosEngagementCloud.setup`, `.events`, even
+  `registerEventListener`) triggers Koin init. There is no window between "load
+  the framework" and "Koin init" for an override to register.
+- The plan literal `MacosEngagementCloud.registerPlatformOverrides(...)` won't
+  work — calling it would itself trigger init.
+- Remediation (Phase-1.5 patch): entry point is instead the top-level
+  `SdkPlatformOverrides.register(...)` (see Gap 2). Consumer contract: **call
+  `SdkPlatformOverrides.register(...)` before ANY access to `MacosEngagementCloud`**.
+  Documented in Section H + shim `ec_setup` docs.
+
+### Gap 4 — `InAppPresenterApi` and its dependent types are `internal`
+
+- Where: `commonMain/.../InAppPresenterApi.kt:7`, `InAppViewApi.kt`,
+  `WebViewHolder.kt`, `InAppPresentationMode` (in `InAppStyle.kt`),
+  `InAppPresentationAnimation.kt`, `InAppLoadingMetric.kt`.
+- Reality: `internal` visibility → not on the framework's Obj-C surface, but
+  also not usable from a Kotlin sub-module built as a separate Gradle project
+  (which is how the plan's Section C "Kotlin side" impl was implicitly assumed
+  to live).
+- Remediation (Phase-1.5 patch, per 2026-07-31 decision): promote all six types
+  to `public`. Accepted API-surface impact for iOS/Android as well; those
+  consumers already have the presenter binding — this just makes the contract
+  addressable.
+
+### Gap 5 — `Setup(applicationCode)` C# shape works, but requires callback
+
+- Where: `MacosSetupApi.enable(MacosEngagementCloudSDKConfig, OnContactLinkingFailed)`
+  in `MacosSetup.kt:22`.
+- `MacosEngagementCloudSDKConfig` is `{ applicationCode: String }` only, so
+  the plan's Section D.5 `EngagementCloud.Setup(applicationCode)` C# signature
+  IS achievable — no config object needed on the C# side, the shim wraps.
+- However, `enable(...)` requires `onContactLinkingFailed: OnContactLinkingFailed`
+  (a callback for when server-side contact linking fails). v1 shim will pass a
+  no-op that resumes with `null` (accept default behaviour). If contact-linking
+  UX is needed, a later `EngagementCloud.SetOnContactLinkingFailed(Func<...>)`
+  can be added — deferred.
+
+### Phase-1.5 patch summary — files touched inside `engagement-cloud-sdk/`
+
+1. `commonMain/.../core/wrapper/WrapperInfo.kt` — remove `internal` from the
+   data class (needed so `MacosSetupApi.setPlatformWrapper` can construct it
+   from an actual serializer input; keep the file otherwise unchanged).
+2. `commonMain/.../di/SdkPlatformOverrides.kt` (new) — top-level Koin module
+   registration.
+3. `commonMain/.../di/SdkKoinIsolationContext.kt` — inside `initKoin()`, after
+   `loadPlatformModules()`, load `SdkPlatformOverrides.registeredModules`.
+4. `macosMain/.../api/setup/MacosSetup.kt` — add `setPlatformWrapper(name, version)`
+   to `MacosSetupApi` interface and `MacosSetup` class; write via
+   `TypedStorageApi.put(WRAPPER_INFO_KEY, WrapperInfo(name, version))`. Requires
+   Koin-getting the `TypedStorageApi` (already bound).
+5. `commonMain/.../mobileengage/inapp/presentation/InAppPresenterApi.kt` — drop
+   `internal`.
+6. `commonMain/.../mobileengage/inapp/view/InAppViewApi.kt` — drop `internal`.
+7. `commonMain/.../mobileengage/inapp/webview/WebViewHolder.kt` — drop `internal`.
+8. `commonMain/.../mobileengage/inapp/presentation/InAppStyle.kt` (contains
+   `InAppPresentationMode`) — drop `internal`.
+9. `commonMain/.../mobileengage/inapp/presentation/InAppPresentationAnimation.kt`
+   — drop `internal`.
+10. `commonMain/.../mobileengage/inapp/reporting/InAppLoadingMetric.kt` — drop
+    `internal`.
+
+Compile-check: `./gradlew :engagement-cloud-sdk:compileKotlinMacosArm64`.
+Contract test: `MacosEngagementCloud.registerEventListener` + one no-op
+`SdkPlatformOverrides.register(listOf(module { }))` before it, verify no
+exceptions.
+
 ## Locked decisions (from interview, 2026-07-31)
 
 | # | Decision | Choice |
@@ -131,12 +238,14 @@ engagement-cloud-unity-sdk/                     (this repo)
 
 ### A. Prerequisites from Phase 1
 - Phase 1's `EngagementCloudSDK.framework` links cleanly on `macosArm64`
-  (`:engagement-cloud-sdk:linkReleaseFrameworkMacosArm64` succeeds).
-- `WrapperInfo` hook accessible from the framework so Phase 2 can set
-  `platformWrapper = "unity"` at Setup time.
-- `InAppPresenterApi` binding remains overridable via Koin (Phase 2 supplies a
-  Unity-specific implementation; Phase 1's AppKit presenter stays for direct
-  callers).
+  (`:engagement-cloud-sdk:linkReleaseFrameworkMacosArm64` succeeds). **Verified
+  2026-07-31.**
+- **Phase-1.5 patch (see "Phase-1.5 remediation" section above)** must land
+  before Section B: `SdkPlatformOverrides.register(modules)` entry point,
+  `MacosSetupApi.setPlatformWrapper(name, version)`, and visibility promotion
+  of `InAppPresenterApi` + 5 dependent types. Files listed in the remediation
+  section. This DOES modify `engagement-cloud-sdk/` — the "unchanged by Phase 2"
+  wording in the repo-layout comment (line ~73) is superseded by this section.
 
 ### B. Native shim (`unity-plugin/shim/`)
 1. Xcode project producing `EngagementCloudSDKUnity.bundle` (Mach-O bundle,
@@ -186,9 +295,15 @@ engagement-cloud-unity-sdk/                     (this repo)
    Shim synthesizes an `NSEvent` (`mouseEventWithType:location:...`) and posts to
    the WebView via `-[NSView mouseDown:]` / `mouseUp:` / `mouseMoved:` on the
    main thread (dispatched via `dispatch_async(dispatch_get_main_queue())`).
-7. Koin override registered from the shim: `InAppPresenterApi` bound to
-   `UnityMacosInAppPresenter` (Kotlin side, referenced by the shim during
-   framework init).
+7. Koin override registered from the shim: at framework load (dlopen path in
+   the bundle's `__attribute__((constructor))`, or `+load` on an Obj-C class in
+   the bundle), the shim calls Kotlin's
+   `SdkPlatformOverrides.register(listOf(unityMacosOverrides))` where
+   `unityMacosOverrides` is a Koin `module { single<InAppPresenterApi>(override = true) { UnityMacosInAppPresenter(...) } }`.
+   Critical ordering: this MUST happen before any consumer code touches
+   `MacosEngagementCloud` (which eagerly triggers Koin init via its `init {}`
+   block). The shim ensures this by registering during its bundle-load
+   constructor, before returning from any C entry point.
 
 ### D. C# runtime (`com.sap.ec.unity/Runtime/`)
 1. **`NativeBridge.cs`**: all `[DllImport("EngagementCloudSDKUnity")]` extern
@@ -270,9 +385,15 @@ engagement-cloud-unity-sdk/                     (this repo)
      `ec_test_ping` shim entry) resolves on Unity's main thread.
 
 ### H. Wrapper identification
-- At Setup, the shim calls the framework's existing `WrapperInfo` hook with
-  `platformWrapper = "unity"` and `platformWrapperVersion = <UPM package version>`
-  (read from `package.json`'s `version`, injected via `#define` at build).
+- At `ec_setup`, the shim calls the new `MacosSetupApi.setPlatformWrapper("unity", <pkg version>)`
+  (added by Phase-1.5 patch) BEFORE calling `enable(...)`. The setter writes
+  through `TypedStorageApi.put(WRAPPER_INFO_KEY, ...)`; from that point
+  `DeviceInfoCollector` will see `platformWrapper = "unity"` on all outbound
+  requests.
+- `<pkg version>` is injected into the shim via an Xcode `GCC_PREPROCESSOR_DEFINITIONS`
+  entry like `EC_WRAPPER_VERSION=\"$(WRAPPER_VERSION)\"`; `WRAPPER_VERSION` is
+  set by the Gradle `assembleUnityShim` task from `com.sap.ec.unity/package.json`'s
+  `version` field before invoking `xcodebuild`.
 - Verified in Phase-2 smoke test by checking the field in outbound HTTP
   requests / server logs.
 
@@ -332,5 +453,7 @@ engagement-cloud-unity-sdk/                     (this repo)
 
 ## Implementation status (2026-07-31)
 
-Not started. This document captures the design contract; work items above
-are ready to be broken into implementation tasks.
+- Prerequisite audit complete (Phase-1 gaps documented in "Phase-1.5
+  remediation" section above).
+- Phase-1.5 patch: not yet applied. Blocks Sections B–H.
+- Sections B–H: not started. Ready to implement once Phase-1.5 patch lands.
