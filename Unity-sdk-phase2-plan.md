@@ -273,15 +273,40 @@ engagement-cloud-unity-sdk/                     (this repo)
    `EngagementCloudSDKUnityKotlin.framework` via `@rpath` with
    `LD_RUNPATH_SEARCH_PATHS = @loader_path/../Frameworks @loader_path`.
    Both frameworks land in `Plugins/macOS/` alongside the shim bundle.
-3. `extern "C"` entry points per Phase 1 API area:
+3. `extern "C"` entry points (revised 2026-07-31 after audit of the framework
+   Obj-C surface — the plan's original list didn't match the real
+   `Macos*Api` protocols):
    - `ec_setup(reqId, applicationCodeUtf8, callback)`
-   - `ec_contact_setId(reqId, contactFieldId, contactFieldValueUtf8, callback)`
-   - `ec_contact_clear(reqId, callback)`
-   - `ec_event_track(reqId, eventNameUtf8, eventAttrsJsonUtf8, callback)`
-   - `ec_inapp_pause(reqId, callback)` / `ec_inapp_resume(reqId, callback)` / …
-   - `ec_config_setContactFieldId(reqId, id, callback)` / …
-   - `ec_deeplink_handle(reqId, urlUtf8, callback)`
-   - `ec_events_setSink(onEvent)` (single global sink)
+   - `ec_contact_link(reqId, contactFieldValueUtf8, callback)`
+   - `ec_contact_linkAuthenticated(reqId, openIdTokenUtf8, callback)`
+   - `ec_contact_unlink(reqId, callback)`
+   - `ec_event_track(reqId, eventNameUtf8, attrsStringMapJsonUtf8, callback)`
+     — attributes are string→string per `CustomEvent`'s Kotlin contract, not
+     arbitrary JSON.
+   - `ec_inapp_pause(reqId, callback)` / `ec_inapp_resume(reqId, callback)`
+   - `ec_inapp_isPaused() -> int32_t` — SDK exposes it as a `BOOL` property,
+     synchronous.
+   - `ec_config_changeApplicationCode`, `_getApplicationCode`,
+     `_getApplicationVersion`, `_getClientId`, `_getSdkVersion`,
+     `_getLanguageCode`, `_setLanguage`, `_resetLanguage`, `_getCurrentSdkState`
+     — matches `MacosConfigApi` exactly. Plan's `_setContactFieldId` /
+     `_getContactFieldId` do NOT exist on `MacosConfigApi` and were dropped.
+   - `ec_deeplink_trackUrl(urlUtf8) -> int32_t` — `MacosDeepLinkApi.track`
+     takes an `NSUserActivity`, not a URL; shim builds a `BrowsingWeb`
+     activity around the URL. Synchronous, returns 1/0.
+   - `ec_events_setSink(onEvent)` (single global sink) — v1 emits
+     `{"type": <className>, "description": <event.description>}`. Richer
+     per-variant JSON is deferred; add per-variant serializers when the C#
+     `SdkEvent` hierarchy needs specific fields.
+   - `ec_logger_setSink(onLog)` — currently a no-op with diagnostic NSLog.
+     The Kotlin `Logger` / `LogSink` interfaces are `internal` in
+     `engagement-cloud-sdk`; wiring will need another small Phase-1
+     remediation similar to `SdkPlatformOverrides` (deferred).
+   - `ec_inapp_texture_acquire() -> IOSurfaceRef` (Section C)
+   - `ec_inapp_input_send(kind, x, y, buttons)` (Section C)
+   - `ec_inapp_setPresenterFrameCallback(callback)` (Section C)
+   - `ec_wrapper_version() -> const char*` — compile-time-injected via
+     `EC_WRAPPER_VERSION_STR` xcodegen preprocessor def.
    - `ec_logger_setSink(onLog)`
    - `ec_inapp_texture_acquire() -> IOSurfaceRef` (for external texture)
    - `ec_inapp_input_send(kind, x, y, buttons)`
@@ -489,7 +514,20 @@ engagement-cloud-unity-sdk/                     (this repo)
   `SdkPlatformOverrides.register(modules)`, `MacosSetupApi.setPlatformWrapper`,
   visibility promotions. `compileKotlinMacosArm64` +
   `linkReleaseFrameworkMacosArm64` verified green.
-- Sections B–H not started. Kotlin sub-module structure decision recorded
-  (2026-07-31): `unity-plugin/kotlin/` produces a second dynamic framework
-  `EngagementCloudSDKUnityKotlin.framework`, shipped alongside the main
-  framework and the shim bundle.
+- Kotlin sub-module `unity-plugin/kotlin/` in place (commit `3c3308c8`):
+  `EngagementCloudSDKUnityKotlin.framework` builds and exports
+  `EngagementCloudUnityBridge` + `UnityMacosInAppPresenter` (stub — real
+  IOSurface path is Section C).
+- Native shim `unity-plugin/shim/` in place: xcodegen `project.yml`,
+  Obj-C++ `.mm` with 24 exported `ec_*` entry points implementing setup,
+  contact (link/linkAuthenticated/unlink), event track (string→string
+  attrs), in-app pause/resume/isPaused, all 9 config accessors, deep-link
+  track, events sink (minimal JSON), logger sink (no-op — held). Section C
+  entry points (`ec_inapp_texture_acquire`, `_input_send`,
+  `_setPresenterFrameCallback`) are still stubs. Bundle verified via
+  `build-local.sh` on Xcode 26.5, `nm -gU` confirms all 24 symbols.
+- Sections C–H not started. Two follow-ups deferred inside Section B:
+  (1) richer per-variant `SdkEvent` JSON serialization (currently only
+  emits type + description); (2) logger sink wiring — needs a small
+  Phase-1 patch to expose the `Logger` / `LogSink` interface (mirror of
+  `SdkPlatformOverrides`).
