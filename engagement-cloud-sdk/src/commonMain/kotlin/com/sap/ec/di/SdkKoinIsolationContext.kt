@@ -73,7 +73,7 @@ object SdkKoinIsolationContext {
         koinApp.koin.loadModules(loadPlatformModules())
         val overrides = SdkPlatformOverrides.registeredModules()
         if (overrides.isNotEmpty()) {
-            koinApp.koin.loadModules(overrides)
+            koinApp.koin.loadModules(overrides, allowOverride = true)
         }
         runningApp = startKoin(koinApp)
 
