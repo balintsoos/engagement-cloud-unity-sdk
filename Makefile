@@ -298,7 +298,7 @@ unity-release-dryrun:
 	@echo "Preflight checks:"
 	@command -v gh >/dev/null 2>&1 && echo "  gh: OK" || echo "  gh: MISSING (brew install gh)"
 	@gh auth status >/dev/null 2>&1 && echo "  gh auth: OK" || echo "  gh auth: NOT AUTHENTICATED (run: gh auth login)"
-	@[ -z "$$(git status --porcelain)" ] && echo "  working tree: clean" || echo "  working tree: DIRTY (commit first)"
+	@[ -z "$$(git status --porcelain --untracked-files=no)" ] && echo "  working tree: clean (ignoring untracked files)" || echo "  working tree: DIRTY (commit first)"
 	@BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
 		[ "$$BRANCH" = "main" ] && echo "  branch: main" || echo "  branch: $$BRANCH (unusual — usually release from main)"
 	@if git rev-parse "$(UNITY_TAG)" >/dev/null 2>&1; then \
@@ -310,7 +310,7 @@ unity-release-dryrun:
 unity-release:
 	@command -v gh >/dev/null 2>&1 || { echo "gh not found. Install with: brew install gh" >&2; exit 1; }
 	@gh auth status >/dev/null 2>&1 || { echo "gh is not authenticated. Run: gh auth login" >&2; exit 1; }
-	@[ -z "$$(git status --porcelain)" ] || { echo "Working tree has uncommitted changes. Commit or stash first." >&2; exit 1; }
+	@[ -z "$$(git status --porcelain --untracked-files=no)" ] || { echo "Working tree has uncommitted changes (tracked files). Commit or stash first." >&2; exit 1; }
 	@if git rev-parse "$(UNITY_TAG)" >/dev/null 2>&1; then \
 		echo "Tag $(UNITY_TAG) already exists. Bump the version in unity-plugin/com.sap.ec.unity/package.json first." >&2; \
 		exit 1; \
