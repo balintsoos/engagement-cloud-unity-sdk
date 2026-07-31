@@ -559,7 +559,18 @@ body, close animation).
   ScriptableObject, `AutoInit`, `UnityInAppTextureView` (RawImage +
   IOSurface external Texture2D + pointer forwarding), `SdkState` enum,
   `link.xml`. Six sample scenes under `Samples~/`.
-- Sections E–H not started. Deferred inside Section D:
+- **Section F — Build orchestration** (commit `<pending>`):
+  `unity-plugin/build.gradle.kts` with typed tasks `stageShimFrameworks`,
+  `assembleUnityShim`, `copyUnityNativePlugins`, `packUnityUpm`,
+  `exportUnityPackage`. Configuration-cache-clean. Makefile targets
+  `unity-shim`, `unity-copy`, `unity-package`, `unity-unitypackage`,
+  `unity-clean`. Verified end-to-end: `make unity-package` on a fresh
+  checkout produces `dist/com.sap.ec.unity-0.1.0-dev.tgz` (~11.7 MB,
+  81 files) containing all three native artifacts + the C# runtime.
+  Unity CLI export (`exportUnityPackage`) gates on `UNITY_PATH` env var;
+  no-op with warning when unset. See `Unity-sdk-phase2-testing.md` for
+  the full testing walkthrough.
+- Sections E, G, H not started. Deferred inside Section D:
   - Richer `SdkEvent` variants — v1 exposes only type+description, matching
     what the shim currently serializes. When shim emits per-variant JSON,
     add typed C# subclasses.

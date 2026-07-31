@@ -1,4 +1,4 @@
-.PHONY: build build-pipeline build-android build-ios build-ios-all-archtypes build-js-html build-web check-env clean create-apks help lint pipeline-android pipeline-js pipeline-ios prepare-release prepare-local-spm publish-android publish-ios-spm publish-npm release release-locally stage-maven-central test test-android test-android-firebase test-ios test-sdk-loader test-web add-privacy-manifest-to-frameworks assemble-npm-package fix-npm-typescript-brand-fields
+.PHONY: build build-pipeline build-android build-ios build-ios-all-archtypes build-js-html build-web check-env clean create-apks help lint pipeline-android pipeline-js pipeline-ios prepare-release prepare-local-spm publish-android publish-ios-spm publish-npm release release-locally stage-maven-central test test-android test-android-firebase test-ios test-sdk-loader test-web add-privacy-manifest-to-frameworks assemble-npm-package fix-npm-typescript-brand-fields unity-shim unity-copy unity-package unity-unitypackage unity-clean
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
 
@@ -32,6 +32,11 @@ help:
 	@echo "  publish-maven               - Publish to GitHub Packages (Maven)"
 	@echo "  publish-npm                 - Publish to GitHub Packages (NPM)"
 	@echo "  publish-ios-spm             - Publish iOS SPM"
+	@echo "  unity-shim                  - Build the Unity native shim bundle"
+	@echo "  unity-copy                  - Stage frameworks + bundle into com.sap.ec.unity/Plugins/macOS"
+	@echo "  unity-package               - Build the UPM tarball (dist/com.sap.ec.unity-<version>.tgz)"
+	@echo "  unity-unitypackage          - Also export a legacy .unitypackage (requires UNITY_PATH env var)"
+	@echo "  unity-clean                 - Clean Unity plugin build outputs"
 
 clean-dist:
 	@rm -rf dist
@@ -224,3 +229,26 @@ pipeline-ios: check-env
 		-PNATIVE_BUILD_TYPE='$(if $(filter true,$(PUBLISH)),RELEASE,DEBUG)' \
 		$(if $(filter true,$(PUBLISH)),-PENABLE_PUBLISHING=true) \
 		--no-daemon
+# Unity plugin (macOS Apple-Silicon only) — see Unity-sdk-phase2-plan.md
+# Requires: xcodegen (brew install xcodegen). Unity CLI only needed for
+# `unity-unitypackage` (UNITY_PATH env var; skipped silently if unset).
+
+unity-shim:
+	@./gradlew :unity-plugin:assembleUnityShim
+
+unity-copy:
+	@./gradlew :unity-plugin:copyUnityNativePlugins
+
+unity-package:
+	@./gradlew :unity-plugin:packUnityUpm
+
+unity-unitypackage:
+	@./gradlew :unity-plugin:exportUnityPackage
+
+unity-clean:
+	@rm -rf unity-plugin/shim/.build unity-plugin/shim/EngagementCloudSDKUnity.xcodeproj \
+	        unity-plugin/shim/EngagementCloudSDKUnity-Info.plist \
+	        unity-plugin/com.sap.ec.unity/Plugins/macOS/*.framework \
+	        unity-plugin/com.sap.ec.unity/Plugins/macOS/*.bundle \
+	        unity-plugin/com.sap.ec.unity/Plugins/macOS/*.dSYM \
+	        dist/com.sap.ec.unity-*.tgz dist/EngagementCloud-*.unitypackage

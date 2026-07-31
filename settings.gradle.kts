@@ -35,5 +35,6 @@ include(
     ":engagement-cloud-sdk-android-fcm",
     ":ios-notification-service",
     ":web-push-service-worker",
+    ":unity-plugin",
     ":unity-plugin:kotlin"
 )
