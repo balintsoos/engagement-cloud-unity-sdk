@@ -1,6 +1,6 @@
 # Phase 1 macOS Port — Session Handoff
 
-Updated 2026-07-31 (§5 landed). Read this first if you're picking up the port.
+Updated 2026-07-31 (§5 landed, §6 sample app added). Read this first if you're picking up the port.
 
 Companion docs (do not duplicate; read them for background):
 - `Unity-sdk-spec.md` — original two-phase spec (macOS port → Unity wrapper).
@@ -20,16 +20,16 @@ Companion docs (do not duplicate; read them for background):
 | 3. `linkDebugFrameworkMacosArm64` | **Done — BUILD SUCCESSFUL.** Framework linked, sanity checks green. |
 | 4. `macosArm64Test` | **Done — 767/767 (766 passed, 1 skipped, 0 failures).** |
 | 5. Real WKWebView + NSWindow in-app presenter | **Done.** WKWebView hosted in `NSPanel` overlay; dismiss on `SdkEvent.Internal.Sdk.Dismiss`. |
-| 6. macOS sample app | Not started. |
+| 6. macOS sample app | **Done (dev sample).** `macosApp/` — hand-built `.app` bundle via `build.sh`; boots, links, run-loop confirmed. Real in-app trigger requires a live EC campaign. |
 | 7. Publishing (KMMBridge / Maven) | Not started. |
 
-**Phase-1 core + §5 done-bar has been met** — the port compiles, links to an arm64 macOS
-`.framework` that now links against AppKit + WebKit, and passes the entire commonTest + macosTest
-suite on real macOS. In-app messages will be shown via a floating `NSPanel` overlay hosting a
-`WKWebView`; the JS bridge, content replacer, and dismissal flow are shared with iOS.
+**Phase-1 core + §5 + §6 done-bar has been met** — the port compiles, links to an arm64 macOS
+`.framework` that depends on AppKit + WebKit, passes the entire commonTest + macosTest suite
+on real macOS, and a minimal AppKit sample app boots against the debug framework. In-app
+messages will be shown via a floating `NSPanel` overlay hosting a `WKWebView`.
 
-Next agent's job: §6 (macOS sample app) or §7 (publishing). Both are still required for the full
-plan done-bar. Ask the user which they want first.
+Next agent's job: §7 (publishing — KMMBridge + Maven). End-to-end in-app verification against a
+real EC campaign is a separate manual step; see `macosApp/README.md`.
 
 ---
 
@@ -110,7 +110,7 @@ Warnings from §3 that are informational only:
 
 ---
 
-## What's next — §6, §7
+## What's next — §7
 
 ### §5 — Real in-app WKWebView + NSPanel presenter — DONE
 
@@ -147,18 +147,24 @@ Notes / follow-ups:
   `InAppPresentationAnimation` type but ignored — matches the current iOS behavior, which also
   passes but does not use the value in `IosInAppPresenter.present`).
 
-### §6 — Minimal macOS sample app (`Unity-sdk-phase1-mac-run.md` §6)
+### §6 — Minimal macOS sample app — DONE
 
-Analog of `iosApp/`. Suggested layout: `macosApp/` with a tiny AppKit app (Swift or Obj-C++) that:
-1. Instantiates `EngagementCloudConfig(applicationCode: "…")`.
-2. Calls `EngagementCloud.setup.enable(config:, onContactLinkingFailed:)`.
-3. Calls `EngagementCloud.event.track(TrackedEvent(name: "test"))`.
-4. Calls `EngagementCloud.contact.link(contactFieldValue: "…")`.
-5. Triggers an in-app message and confirms the WKWebView overlay appears (§5 is now live).
+Landed in this session. `macosApp/` — deliberately NOT an Xcode project. Contents:
+- `Sources/main.swift` — AppKit host with `@main AppDelegate`. Four buttons that call
+  `EngagementCloud.shared.setup.enable(config:onContactLinkingFailed:)`,
+  `event.track(CustomEvent(name:))`, `contact.link(contactFieldValue:)`, and an informational
+  hint that in-app arrives asynchronously from the EC campaign side. Application code is the
+  placeholder `"EMSE3-B4341"` (mirrors `iosApp`).
+- `Info.plist`, `build.sh`, `README.md`.
+- `build.sh` compiles with `swiftc -parse-as-library -target arm64-apple-macos13 -F <framework
+  dir> -framework EngagementCloudSDK`, copies the framework to `Contents/Frameworks/`, sets
+  `LC_RPATH = @executable_path/../Frameworks`, and ad-hoc-signs. Verified: `otool -L` shows
+  `@rpath/EngagementCloudSDK.framework/...`; launching the `.app` binary produces a live
+  `NSApplication` run loop with the framework loaded (no runtime dyld errors).
 
-Consume the framework by dragging `EngagementCloudSDK.framework` from the debug build directly
-into the sample's Xcode project. SPM wiring (via `spmLocalRelease/` and KMMBridge) is a later
-concern tied to §7.
+To validate end-to-end in-app display against a real EC environment: swap the application code
+in `main.swift`, run the sample, and trigger a live campaign. This session did not perform that
+step — it's a manual + credentialed action and not blocking for Phase-1 code sign-off.
 
 ### §7 — Publishing
 
@@ -170,32 +176,21 @@ up the macOS framework now that the target compiles. For Maven Central / GitHub 
 
 ## Repo state at handoff
 
-Branch: `main`. Files changed by this session (across §2–§5):
+Branch: `main`. Two commits landed this session on top of the pre-existing scaffolding:
+- `feat(macos-port): implement WKWebView + NSPanel in-app presenter` — §5.
+- (next commit — §6 sample app; will be the current HEAD after commit).
 
-- **Modified (uncommitted):**
-  - `engagement-cloud-sdk/src/commonMain/kotlin/com/sap/ec/core/crypto/Crypto.kt` (§2 fix)
-  - `engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/core/device/UIDevice.kt` (§2 fix)
-  - `engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/mobileengage/inapp/MacosInAppPresenter.kt` (§5)
-  - `engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/di/MacosInjection.kt` (§5)
-- **New (uncommitted, §5):**
-  - `engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/mobileengage/inapp/InAppJsBridge.kt`
-  - `engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/mobileengage/inapp/MacosInAppView.kt`
-  - `engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/mobileengage/inapp/MacosInAppViewProvider.kt`
-  - `engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/mobileengage/inapp/MacosWebViewHolder.kt`
-  - `engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/mobileengage/inapp/providers/InAppJsBridgeFactory.kt`
-  - `engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/mobileengage/inapp/providers/MacosWebViewFactory.kt`
-  - `engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/mobileengage/inapp/providers/MacosWebViewFactoryApi.kt`
-- **New (uncommitted, safe to delete if noisy):**
-  - `macos-compile.log`, `macos-link.log`, `macos-test.log` at repo root — verbose build logs.
-  - `Unity-sdk-phase1-handoff.md` — this file.
+Files added / changed in §6:
+- **New (§6):** `macosApp/Sources/main.swift`, `macosApp/Info.plist`, `macosApp/build.sh`,
+  `macosApp/README.md`. `macosApp/build/` is gitignored (matches the existing `**/build/`
+  pattern).
+- **Modified (§6):** `Unity-sdk-phase1-handoff.md` (this file).
 
-Nothing committed, nothing pushed, no branches created. Pre-existing pending state (already
-there when the session started, not from this session): `.gitmodules`, `Makefile`,
-`engagement-cloud-sdk-docs` submodule, most of `engagement-cloud-sdk/src/macosMain/` and
-`macosTest/`, and the three `Unity-sdk-*.md` docs — that's the Linux-authored scaffolding.
+From earlier in the session, still committed (see `git log --oneline`): the §2 fixes to
+`Crypto.kt` and `UIDevice.kt`, plus the whole §5 in-app presenter package.
 
-Consider `git add -p` on the four modified files above and the new `mobileengage/inapp/` files
-alongside the scaffolding when the user is ready to commit.
+Still uncommitted / untracked from before this session (NOT owned by us): `engagement-cloud-sdk-docs/`
+submodule directory. Leave it alone.
 
 ---
 
@@ -214,4 +209,9 @@ alongside the scaffolding when the user is ready to commit.
   the K/N `NSView` binding doesn't surface `translatesAutoresizingMaskIntoConstraints` as a
   property on the WKWebView receiver. Framework now links AppKit + WebKit; full test suite
   (767 tests, 1 skipped, 0 failures) still green.
+- 2026-07-31 — §6 landed. `macosApp/` sample. Not an Xcode project: `build.sh` compiles
+  `Sources/main.swift` with `swiftc -parse-as-library`, produces a hand-built `.app` with the
+  framework bundled at `Contents/Frameworks/` and `LC_RPATH=@executable_path/../Frameworks`.
+  Smoke-verified: exe launches, run loop enters, framework loads without dyld errors. Full
+  end-to-end in-app trigger against a live EC campaign is out of scope for this session.
 - (Add next fix here.)
