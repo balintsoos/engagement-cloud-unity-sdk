@@ -4,7 +4,7 @@ import com.sap.ec.InternalSdkApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-internal sealed class InAppPresentationMode {
+sealed class InAppPresentationMode {
 
     data object Overlay : InAppPresentationMode()
 
@@ -27,7 +27,7 @@ enum class InAppType {
     RIBBON
 }
 
-internal enum class SheetDirection {
+enum class SheetDirection {
     TOP,
     BOTTOM,
     LEFT,

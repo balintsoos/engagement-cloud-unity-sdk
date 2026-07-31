@@ -3,4 +3,4 @@ package com.sap.ec.core.wrapper
 import kotlinx.serialization.Serializable
 
 @Serializable
-internal data class WrapperInfo(val platformWrapper: String, val wrapperVersion: String)
+data class WrapperInfo(val platformWrapper: String, val wrapperVersion: String)

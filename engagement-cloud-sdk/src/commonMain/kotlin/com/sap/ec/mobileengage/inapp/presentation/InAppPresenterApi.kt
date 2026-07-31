@@ -4,7 +4,7 @@ import com.sap.ec.mobileengage.inapp.reporting.InAppLoadingMetric
 import com.sap.ec.mobileengage.inapp.view.InAppViewApi
 import com.sap.ec.mobileengage.inapp.webview.WebViewHolder
 
-internal interface InAppPresenterApi {
+interface InAppPresenterApi {
     suspend fun trackMetric(
         trackingInfo: String,
         loadingMetric: InAppLoadingMetric,

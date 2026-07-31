@@ -5,6 +5,9 @@ import com.sap.ec.config.LinkContactData
 import com.sap.ec.core.exceptions.SdkException.InvalidApplicationCodeException
 import com.sap.ec.core.exceptions.SdkException.SdkAlreadyDisabledException
 import com.sap.ec.core.exceptions.SdkException.SdkAlreadyEnabledException
+import com.sap.ec.core.storage.StorageConstants
+import com.sap.ec.core.storage.TypedStorageApi
+import com.sap.ec.core.wrapper.WrapperInfo
 import io.ktor.utils.io.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import platform.Foundation.NSError
@@ -30,9 +33,22 @@ interface MacosSetupApi {
     suspend fun isEnabled(): Boolean
 
     fun setOnContactLinkingFailedCallback(onContactLinkingFailed: OnContactLinkingFailed)
+
+    /**
+     * Records the identity of a platform wrapper hosting the SDK (e.g. "unity",
+     * "react-native"). Must be called before [enable] so the wrapper identity is
+     * present on the very first outbound request.
+     *
+     * Persisted via [TypedStorageApi] under [StorageConstants.WRAPPER_INFO_KEY];
+     * read by `DeviceInfoCollector` on every device-info build.
+     */
+    suspend fun setPlatformWrapper(name: String, version: String)
 }
 
-class MacosSetup(private val setup: SetupApi) : MacosSetupApi {
+internal class MacosSetup(
+    private val setup: SetupApi,
+    private val wrapperInfoStorage: TypedStorageApi
+) : MacosSetupApi {
 
     override suspend fun enable(
         config: MacosEngagementCloudSDKConfig,
@@ -49,6 +65,14 @@ class MacosSetup(private val setup: SetupApi) : MacosSetupApi {
 
     override fun setOnContactLinkingFailedCallback(onContactLinkingFailed: OnContactLinkingFailed) {
         setup.setOnContactLinkingFailedCallback(wrap(onContactLinkingFailed))
+    }
+
+    override suspend fun setPlatformWrapper(name: String, version: String) {
+        wrapperInfoStorage.put(
+            StorageConstants.WRAPPER_INFO_KEY,
+            WrapperInfo.serializer(),
+            WrapperInfo(platformWrapper = name, wrapperVersion = version)
+        )
     }
 
     private fun wrap(cb: OnContactLinkingFailed): suspend () -> LinkContactData? = suspend {

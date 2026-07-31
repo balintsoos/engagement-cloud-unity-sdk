@@ -91,7 +91,7 @@ internal object MacosInjection {
     val macosModules = module {
         single<NSUserDefaults> { NSUserDefaults(StorageConstants.SUITE_NAME) }
 
-        single<MacosSetupApi> { MacosSetup(get()) }
+        single<MacosSetupApi> { MacosSetup(get(), get()) }
         single<MacosContactApi> { MacosContact() }
         single<MacosTrackingApi> { MacosTracking() }
         single<MacosInAppApi> { MacosInApp() }
