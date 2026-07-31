@@ -1,6 +1,6 @@
 # Phase 1 macOS Port — Session Handoff
 
-Updated 2026-07-31. Read this first if you're picking up the port.
+Updated 2026-07-31 (§5 landed). Read this first if you're picking up the port.
 
 Companion docs (do not duplicate; read them for background):
 - `Unity-sdk-spec.md` — original two-phase spec (macOS port → Unity wrapper).
@@ -18,17 +18,18 @@ Companion docs (do not duplicate; read them for background):
 | 1. Target registered | **Done.** |
 | 2. `compileKotlinMacosArm64` | **Done — BUILD SUCCESSFUL.** Two fixes applied (below). |
 | 3. `linkDebugFrameworkMacosArm64` | **Done — BUILD SUCCESSFUL.** Framework linked, sanity checks green. |
-| 4. `macosArm64Test` | **Done — 766/767 passed, 1 skipped, 0 failures.** |
-| 5. Real WKWebView + NSWindow in-app presenter | **Not started.** Current `MacosInAppPresenter` is a no-op stub. |
+| 4. `macosArm64Test` | **Done — 767/767 (766 passed, 1 skipped, 0 failures).** |
+| 5. Real WKWebView + NSWindow in-app presenter | **Done.** WKWebView hosted in `NSPanel` overlay; dismiss on `SdkEvent.Internal.Sdk.Dismiss`. |
 | 6. macOS sample app | Not started. |
 | 7. Publishing (KMMBridge / Maven) | Not started. |
 
-**Phase-1 core done-bar has been met on the Linux-authored scaffolding** — the port compiles,
-links to an arm64 macOS `.framework`, and passes the entire commonTest + macosTest suite on
-real macOS without any further changes beyond the two fixes in this document.
+**Phase-1 core + §5 done-bar has been met** — the port compiles, links to an arm64 macOS
+`.framework` that now links against AppKit + WebKit, and passes the entire commonTest + macosTest
+suite on real macOS. In-app messages will be shown via a floating `NSPanel` overlay hosting a
+`WKWebView`; the JS bridge, content replacer, and dismissal flow are shared with iOS.
 
-Next agent's job: pick between (a) implementing §5 (real in-app presenter) or (b) §6 (sample
-app) — the plan lists both as required for the done-bar. Ask the user which they want first.
+Next agent's job: §6 (macOS sample app) or §7 (publishing). Both are still required for the full
+plan done-bar. Ask the user which they want first.
 
 ---
 
@@ -83,8 +84,8 @@ branch mirroring the IOS branch (macOS Kotlin/Native uses the same DER-formatted
 
 `engagement-cloud-sdk/build/bin/macosArm64/debugFramework/EngagementCloudSDK.framework`:
 - `lipo -info` → `arm64` (single-arch, correct for macosArm64-only target).
-- `otool -L` → Foundation + libSystem + libc++ + libobjc + libsqlite3 + libz + libncurses + libbz2.
-  No UIKit, no AppKit yet (AppKit will appear once §5 lands).
+- `otool -L` → Foundation + libSystem + libc++ + libobjc + libsqlite3 + libz + libncurses + libbz2
+  **plus AppKit and WebKit** (added by §5 landing).
 - `nm -gU | grep OBJC_CLASS.*EngagementCloud` → exports `ECSDKEngagementCloud`,
   `ECSDKEngagementCloudConfig`, `ECSDKEngagementCloudEvent`, etc. (The `ECSDK` prefix is the
   configured framework class prefix — this is the SKIE/framework standard, not a rename bug.)
@@ -109,25 +110,42 @@ Warnings from §3 that are informational only:
 
 ---
 
-## What's next — §5, §6, §7
+## What's next — §6, §7
 
-### §5 — Real in-app WKWebView + NSWindow presenter (`Unity-sdk-phase1-mac-run.md` §5)
+### §5 — Real in-app WKWebView + NSPanel presenter — DONE
 
-Current `MacosInAppPresenter` is a no-op stub. Files to add (all under
-`engagement-cloud-sdk/src/macosMain/kotlin/`), modeled directly on their iOS counterparts
-in `engagement-cloud-sdk/src/iosMain/kotlin/com/sap/ec/mobileengage/inapp/`:
+Landed in this session. Files added under
+`engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/mobileengage/inapp/`:
 
-1. **`MacosWebViewFactory`** (`.../mobileengage/inapp/providers/`) — mirror `IosWebViewFactory`,
-   returning a `WKWebView` with `WKWebViewConfiguration`. Two mandatory drops:
-   - macOS `WKWebView` has **no** `scrollView` / `contentInsetAdjustmentBehavior`.
-   - `UIColor` → `NSColor` (from AppKit).
-2. **`MacosInAppViewProvider` + `MacosInAppView`** — implement the commonMain `InAppViewApi`.
-3. **`MacosInAppPresenter`** — host the WKWebView in an `NSWindow` (or overlay-styled `NSPanel`),
-   present/dismiss driven by `SdkEvent.Internal.Sdk.Dismiss`. Replace the stub binding in
-   `MacosInjection` — add `single<InAppViewProviderApi> { … }` and update `single<InAppPresenterApi>`.
+- `InAppJsBridge.kt` — direct port of the iOS `InAppJsBridge` (WebKit + Foundation only, no UIKit).
+- `providers/InAppJsBridgeFactory.kt` — mirror of the iOS factory.
+- `providers/MacosWebViewFactoryApi.kt` + `providers/MacosWebViewFactory.kt` — creates a
+  `WKWebView` with `WKProcessPool` and the JS bridge's user-content controller. Drops the
+  `scrollView` / `contentInsetAdjustmentBehavior` calls that don't exist on macOS's `WKWebView`
+  (which is an `NSView`, not a `UIScrollView` host).
+- `MacosWebViewHolder.kt` — `WebViewHolder` carrying the `WKWebView`.
+- `MacosInAppView.kt` + `MacosInAppViewProvider.kt` — mirrors of the iOS `InAppView` /
+  `InAppViewProvider` against `MacosWebViewFactoryApi`.
+- `MacosInAppPresenter.kt` — no longer a stub. Presents the `WKWebView` inside a borderless
+  `NSPanel` (`NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel`) at the main
+  screen frame, floating window level, non-opaque; dismisses on the same
+  `SdkEvent.Internal.Sdk.Dismiss` (matched by `dismissId`) that the iOS presenter listens for.
+  Layout via `autoresizingMask` (Width|Height sizable) rather than `NSLayoutConstraint` — the
+  Kotlin/Native `NSView` binding does not expose `translatesAutoresizingMaskIntoConstraints` as
+  a property on the WKWebView-typed receiver; `autoresizingMask` works cleanly on both types
+  and is simpler for a full-bleed overlay.
+- `di/MacosInjection.kt` — added `single<InAppViewProviderApi> { … }` and rewired
+  `single<InAppPresenterApi>` to inject `SdkEventDistributorApi`.
 
-If `InAppJsBridgeFactory` references UIKit types, extract a macOS-safe version — do NOT
-`dependsOn(commonComposeMain)` from `macosMain`.
+Notes / follow-ups:
+- The `NSPanel` covers the whole main screen; the HTML in-app content paints its own layout and
+  background. No further AppKit-level color/blur tweaks were added — HTML overlays are already
+  transparent-aware from the iOS side.
+- Non-activating panel + `becomesKeyOnlyIfNeeded=true` means the host app keeps focus. If in-app
+  content requires text input, tune that later.
+- The presenter does not currently animate in/out (`animation` param is honored via the passed
+  `InAppPresentationAnimation` type but ignored — matches the current iOS behavior, which also
+  passes but does not use the value in `IosInAppPresenter.present`).
 
 ### §6 — Minimal macOS sample app (`Unity-sdk-phase1-mac-run.md` §6)
 
@@ -136,7 +154,7 @@ Analog of `iosApp/`. Suggested layout: `macosApp/` with a tiny AppKit app (Swift
 2. Calls `EngagementCloud.setup.enable(config:, onContactLinkingFailed:)`.
 3. Calls `EngagementCloud.event.track(TrackedEvent(name: "test"))`.
 4. Calls `EngagementCloud.contact.link(contactFieldValue: "…")`.
-5. Triggers an in-app message and confirms the WKWebView overlay appears (once §5 lands).
+5. Triggers an in-app message and confirms the WKWebView overlay appears (§5 is now live).
 
 Consume the framework by dragging `EngagementCloudSDK.framework` from the debug build directly
 into the sample's Xcode project. SPM wiring (via `spmLocalRelease/` and KMMBridge) is a later
@@ -152,11 +170,21 @@ up the macOS framework now that the target compiles. For Maven Central / GitHub 
 
 ## Repo state at handoff
 
-Branch: `main`. Files changed by this session:
+Branch: `main`. Files changed by this session (across §2–§5):
 
 - **Modified (uncommitted):**
-  - `engagement-cloud-sdk/src/commonMain/kotlin/com/sap/ec/core/crypto/Crypto.kt`
-  - `engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/core/device/UIDevice.kt`
+  - `engagement-cloud-sdk/src/commonMain/kotlin/com/sap/ec/core/crypto/Crypto.kt` (§2 fix)
+  - `engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/core/device/UIDevice.kt` (§2 fix)
+  - `engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/mobileengage/inapp/MacosInAppPresenter.kt` (§5)
+  - `engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/di/MacosInjection.kt` (§5)
+- **New (uncommitted, §5):**
+  - `engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/mobileengage/inapp/InAppJsBridge.kt`
+  - `engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/mobileengage/inapp/MacosInAppView.kt`
+  - `engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/mobileengage/inapp/MacosInAppViewProvider.kt`
+  - `engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/mobileengage/inapp/MacosWebViewHolder.kt`
+  - `engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/mobileengage/inapp/providers/InAppJsBridgeFactory.kt`
+  - `engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/mobileengage/inapp/providers/MacosWebViewFactory.kt`
+  - `engagement-cloud-sdk/src/macosMain/kotlin/com/sap/ec/mobileengage/inapp/providers/MacosWebViewFactoryApi.kt`
 - **New (uncommitted, safe to delete if noisy):**
   - `macos-compile.log`, `macos-link.log`, `macos-test.log` at repo root — verbose build logs.
   - `Unity-sdk-phase1-handoff.md` — this file.
@@ -166,8 +194,8 @@ there when the session started, not from this session): `.gitmodules`, `Makefile
 `engagement-cloud-sdk-docs` submodule, most of `engagement-cloud-sdk/src/macosMain/` and
 `macosTest/`, and the three `Unity-sdk-*.md` docs — that's the Linux-authored scaffolding.
 
-Consider `git add -p` on `Crypto.kt` and `UIDevice.kt` alongside the scaffolding when the
-user is ready to commit.
+Consider `git add -p` on the four modified files above and the new `mobileengage/inapp/` files
+alongside the scaffolding when the user is ready to commit.
 
 ---
 
@@ -178,4 +206,12 @@ user is ready to commit.
   `osVersion()` uses `.useContents { }` on the `CValue<NSOperatingSystemVersion>`.
 - 2026-07-31 — Xcode.app installed by user; §3 linked, §4 tests 766/767 passed. No SDK code
   changes needed beyond the two above.
+- 2026-07-31 — §5 landed. Ported `InAppJsBridge` and `InAppJsBridgeFactory` from iosMain
+  (WebKit-only, no UIKit). Added `MacosWebViewFactory{Api}`, `MacosWebViewHolder`,
+  `MacosInAppView`, `MacosInAppViewProvider`. Rewrote `MacosInAppPresenter` to host the
+  `WKWebView` in a non-activating floating borderless `NSPanel`, dismiss on
+  `SdkEvent.Internal.Sdk.Dismiss` matched by `dismissId`. Layout via `autoresizingMask` because
+  the K/N `NSView` binding doesn't surface `translatesAutoresizingMaskIntoConstraints` as a
+  property on the WKWebView receiver. Framework now links AppKit + WebKit; full test suite
+  (767 tests, 1 skipped, 0 failures) still green.
 - (Add next fix here.)

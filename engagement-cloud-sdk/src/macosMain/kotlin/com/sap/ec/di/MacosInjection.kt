@@ -56,8 +56,13 @@ import com.sap.ec.enable.PlatformInitializerApi
 import com.sap.ec.enable.config.MacosSdkConfigStore
 import com.sap.ec.enable.config.SdkConfigStoreApi
 import com.sap.ec.init.states.LegacySDKMigrationState
+import com.sap.ec.mobileengage.action.EventActionFactoryApi
 import com.sap.ec.mobileengage.inapp.MacosInAppPresenter
+import com.sap.ec.mobileengage.inapp.MacosInAppViewProvider
 import com.sap.ec.mobileengage.inapp.presentation.InAppPresenterApi
+import com.sap.ec.mobileengage.inapp.providers.InAppJsBridgeFactory
+import com.sap.ec.mobileengage.inapp.providers.MacosWebViewFactory
+import com.sap.ec.mobileengage.inapp.view.InAppViewProviderApi
 import com.sap.ec.sqldelight.SapEngagementCloudDB
 import com.sap.ec.watchdog.connection.ConnectionWatchDog
 import com.sap.ec.watchdog.lifecycle.LifecycleWatchDog
@@ -78,9 +83,7 @@ import platform.Foundation.NSUserDefaults
  * - Inline Compose views: no `InlineInAppViewRendererApi` binding (macOS uses WKWebView presenter
  *   instead — see [MacosInAppPresenter]).
  *
- * Section E (WKWebView + NSWindow presenter) is intentionally stubbed — see the TODO in
- * `MacosInAppPresenter`. The DI still wires it so the `InAppPresenterApi` slot is filled; the
- * runtime behavior is a no-op until Section E lands.
+ * The in-app presenter is a real WKWebView + NSPanel overlay (see [MacosInAppPresenter]).
  */
 internal object MacosInjection {
     val macosModules = module {
@@ -157,13 +160,31 @@ internal object MacosInjection {
         single<LaunchApplicationHandlerApi> { MacosLaunchApplicationHandler() }
         single<LanguageTagValidatorApi> { MacosLanguageTagValidator() }
 
-        // Section E — Full AppKit + WKWebView presenter is a TODO. The InAppPresenterApi slot is
-        // filled with a stub so DI resolution succeeds; runtime in-app display is inert until
-        // MacosInAppPresenter is completed.
+        // In-app messaging: WKWebView + NSPanel overlay presenter, matching the iOS flow.
+        single<InAppViewProviderApi> {
+            val inAppJsBridgeFactory = InAppJsBridgeFactory(
+                actionFactory = get<EventActionFactoryApi>(),
+                json = get(),
+                mainDispatcher = get(named(DispatcherTypes.Main)),
+                sdkDispatcher = get(named(DispatcherTypes.Sdk)),
+                sdkLogger = get { parametersOf(InAppJsBridgeFactory::class.simpleName) }
+            )
+            val macosWebViewFactory = MacosWebViewFactory(
+                mainDispatcher = get(named(DispatcherTypes.Main)),
+                inAppJsBridgeFactory = inAppJsBridgeFactory
+            )
+            MacosInAppViewProvider(
+                mainDispatcher = get(named(DispatcherTypes.Main)),
+                webViewProvider = macosWebViewFactory,
+                timestampProvider = get(),
+                contentReplacer = get()
+            )
+        }
         single<InAppPresenterApi> {
             MacosInAppPresenter(
                 mainDispatcher = get(named(DispatcherTypes.Main)),
                 sdkDispatcher = get(named(DispatcherTypes.Sdk)),
+                sdkEventDistributor = get(),
                 logger = get { parametersOf(MacosInAppPresenter::class.simpleName) }
             )
         }
