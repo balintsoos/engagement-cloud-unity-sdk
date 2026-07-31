@@ -177,8 +177,14 @@ exceptions.
 
 ```
 engagement-cloud-unity-sdk/                     (this repo)
-├── engagement-cloud-sdk/                       (existing KMP module, unchanged by Phase 2)
+├── engagement-cloud-sdk/                       (existing KMP module; Phase-1.5 patch applied — see remediation section)
 ├── unity-plugin/
+│   ├── kotlin/                                 (new KMP module — Unity-side Kotlin overrides)
+│   │   ├── build.gradle.kts                    (macosArm64 target → dynamic framework)
+│   │   └── src/macosArm64Main/kotlin/com/sap/ec/unity/
+│   │       ├── UnityBridge.kt                  (@ObjCName entry — shim calls SdkPlatformOverrides.register from here)
+│   │       ├── UnityMacosInAppPresenter.kt     (implements InAppPresenterApi with IOSurface-backed WKWebView)
+│   │       └── UnityMacosModule.kt             (Koin `module { single<InAppPresenterApi>(override = true) { ... } }`)
 │   ├── shim/
 │   │   ├── EngagementCloudSDKUnity.xcodeproj/
 │   │   ├── src/
@@ -206,8 +212,9 @@ engagement-cloud-unity-sdk/                     (this repo)
 │   │   │   ├── link.xml                        (IL2CPP preservation)
 │   │   │   └── EngagementCloud.Runtime.asmdef
 │   │   ├── Plugins/macOS/                      (build output lands here)
-│   │   │   ├── EngagementCloudSDKUnity.bundle/
-│   │   │   └── EngagementCloudSDK.framework/
+│   │   │   ├── EngagementCloudSDKUnity.bundle/         (Obj-C++ shim)
+│   │   │   ├── EngagementCloudSDK.framework/           (Phase-1 KMP framework)
+│   │   │   └── EngagementCloudSDKUnityKotlin.framework/ (new — from unity-plugin/kotlin)
 │   │   ├── Editor/
 │   │   │   ├── SettingsInspector.cs
 │   │   │   ├── SettingsMenuItem.cs             ("Create → SAP EC → Settings")
@@ -247,11 +254,25 @@ engagement-cloud-unity-sdk/                     (this repo)
   section. This DOES modify `engagement-cloud-sdk/` — the "unchanged by Phase 2"
   wording in the repo-layout comment (line ~73) is superseded by this section.
 
-### B. Native shim (`unity-plugin/shim/`)
+### B. Native shim (`unity-plugin/shim/`) + Kotlin overrides (`unity-plugin/kotlin/`)
+
+**Kotlin sub-module `unity-plugin/kotlin/`** (locked 2026-07-31):
+- New KMP module, `macosArm64` target, produces dynamic
+  `EngagementCloudSDKUnityKotlin.framework`.
+- Depends on `:engagement-cloud-sdk` (via `implementation(project(...))`).
+- Contains `UnityMacosInAppPresenter : InAppPresenterApi` (see Section C for
+  implementation), plus `object UnityBridge { fun registerOverrides() }` — an
+  `@ObjCName`d entry point the shim calls at bundle-load time to invoke
+  `SdkPlatformOverrides.register(listOf(UnityMacosModule))`.
+- Presenter binding lives in a Koin `module { single<InAppPresenterApi>(override = true) { UnityMacosInAppPresenter(...) } }`.
+
+**Shim bundle** (`unity-plugin/shim/`):
 1. Xcode project producing `EngagementCloudSDKUnity.bundle` (Mach-O bundle,
    `CFBundlePackageType=BNDL`, target `macosArm64`, deployment `macOS 11+`).
-2. Links against `EngagementCloudSDK.framework` via `@rpath` with
+2. Links against `EngagementCloudSDK.framework` AND
+   `EngagementCloudSDKUnityKotlin.framework` via `@rpath` with
    `LD_RUNPATH_SEARCH_PATHS = @loader_path/../Frameworks @loader_path`.
+   Both frameworks land in `Plugins/macOS/` alongside the shim bundle.
 3. `extern "C"` entry points per Phase 1 API area:
    - `ec_setup(reqId, applicationCodeUtf8, callback)`
    - `ec_contact_setId(reqId, contactFieldId, contactFieldValueUtf8, callback)`
@@ -359,11 +380,21 @@ engagement-cloud-unity-sdk/                     (this repo)
    settings asset under `Assets/Resources/`.
 
 ### F. Build orchestration (Gradle + Makefile)
-1. New Gradle module `unity-plugin/build.gradle.kts` declares tasks:
-   - `assembleUnityShim` — invokes `xcodebuild -project shim/... -scheme Bundle -sdk macosx -destination "generic/platform=macOS,arch=arm64" -configuration Release build` and locates the produced `.bundle`.
-   - `copyUnityNativePlugins` — depends on `:engagement-cloud-sdk:linkReleaseFrameworkMacosArm64` and `assembleUnityShim`; copies both into `com.sap.ec.unity/Plugins/macOS/`.
+1. New Gradle module `unity-plugin/kotlin/build.gradle.kts` — KMP `macosArm64`
+   dynamic framework; task `:unity-plugin:kotlin:linkReleaseFrameworkMacosArm64`
+   produces `EngagementCloudSDKUnityKotlin.framework`.
+2. New Gradle module `unity-plugin/build.gradle.kts` declares tasks:
+   - `assembleUnityShim` — depends on
+     `:engagement-cloud-sdk:linkReleaseFrameworkMacosArm64` AND
+     `:unity-plugin:kotlin:linkReleaseFrameworkMacosArm64`. Invokes
+     `xcodebuild -project shim/... -scheme Bundle -sdk macosx -destination "generic/platform=macOS,arch=arm64" -configuration Release build` and locates the produced `.bundle`.
+   - `copyUnityNativePlugins` — copies both frameworks + the shim bundle into
+     `com.sap.ec.unity/Plugins/macOS/`.
    - `packUnityUpm` — `tar czf com.sap.ec.unity-<version>.tgz -C com.sap.ec.unity .`.
-   - `exportUnityPackage` — runs Unity CLI `-batchmode -exportPackage`; requires Unity 6.5 on the CI worker; skippable locally.
+   - `exportUnityPackage` — runs Unity CLI `-batchmode -exportPackage`;
+     requires Unity 6.5 on the CI worker; skippable locally when `UNITY_PATH`
+     env var is unset (2026-07-31 session decision — this session doesn't have
+     Unity installed).
 2. `Makefile` top-level:
    - `make unity-package` → runs Gradle `packUnityUpm` then `exportUnityPackage`.
 3. C# assembly is compiled *by Unity* on package import — no separate `dotnet build` step for shipping; but a project-level `EngagementCloud.Runtime.csproj` mirroring the `.asmdef` is checked in for IDE tooling and EditMode test discovery.
@@ -453,7 +484,12 @@ engagement-cloud-unity-sdk/                     (this repo)
 
 ## Implementation status (2026-07-31)
 
-- Prerequisite audit complete (Phase-1 gaps documented in "Phase-1.5
-  remediation" section above).
-- Phase-1.5 patch: not yet applied. Blocks Sections B–H.
-- Sections B–H: not started. Ready to implement once Phase-1.5 patch lands.
+- Prerequisite audit complete (see Phase-1.5 remediation section).
+- Phase-1.5 patch applied to `engagement-cloud-sdk/` (commit `303b080b`) —
+  `SdkPlatformOverrides.register(modules)`, `MacosSetupApi.setPlatformWrapper`,
+  visibility promotions. `compileKotlinMacosArm64` +
+  `linkReleaseFrameworkMacosArm64` verified green.
+- Sections B–H not started. Kotlin sub-module structure decision recorded
+  (2026-07-31): `unity-plugin/kotlin/` produces a second dynamic framework
+  `EngagementCloudSDKUnityKotlin.framework`, shipped alongside the main
+  framework and the shim bundle.
