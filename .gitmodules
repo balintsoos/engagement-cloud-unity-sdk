@@ -1,0 +1,3 @@
+[submodule "engagement-cloud-sdk-docs"]
+	path = engagement-cloud-sdk-docs
+	url = git@github.com:emartech/engagement-cloud-sdk-docs.git
