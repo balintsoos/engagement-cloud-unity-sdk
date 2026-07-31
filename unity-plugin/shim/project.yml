@@ -1,0 +1,79 @@
+name: EngagementCloudSDKUnity
+options:
+  bundleIdPrefix: com.sap.ec.unity
+  deploymentTarget:
+    macOS: "11.0"
+  createIntermediateGroups: true
+  minimumXcodeGenVersion: "2.42.0"
+
+settings:
+  base:
+    ARCHS: arm64
+    ONLY_ACTIVE_ARCH: YES
+    SDKROOT: macosx
+    MACOSX_DEPLOYMENT_TARGET: "11.0"
+    CLANG_CXX_LANGUAGE_STANDARD: "gnu++17"
+    CLANG_CXX_LIBRARY: "libc++"
+    CLANG_ENABLE_OBJC_ARC: YES
+    CLANG_ENABLE_MODULES: YES
+    CLANG_WARN_DOCUMENTATION_COMMENTS: NO
+    GCC_WARN_UNUSED_FUNCTION: NO
+    ENABLE_BITCODE: NO
+    DEAD_CODE_STRIPPING: NO
+    STRIP_INSTALLED_PRODUCT: NO
+    # `EC_FRAMEWORKS_DIR` is passed at build time by the Gradle build so it
+    # points at the layout under `com.sap.ec.unity/Plugins/macOS/`. Local
+    # Xcode builds resolve it via the fallback in the caller.
+    FRAMEWORK_SEARCH_PATHS:
+      - "$(inherited)"
+      - "$(EC_FRAMEWORKS_DIR)"
+    LD_RUNPATH_SEARCH_PATHS:
+      - "$(inherited)"
+      - "@loader_path"
+      - "@loader_path/../Frameworks"
+
+targets:
+  EngagementCloudSDKUnity:
+    type: bundle
+    platform: macOS
+    sources:
+      - path: src
+        excludes:
+          - "*.md"
+    info:
+      path: EngagementCloudSDKUnity-Info.plist
+      properties:
+        CFBundleDevelopmentRegion: en
+        CFBundleExecutable: $(EXECUTABLE_NAME)
+        CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
+        CFBundleInfoDictionaryVersion: "6.0"
+        CFBundleName: $(PRODUCT_NAME)
+        CFBundlePackageType: BNDL
+        CFBundleShortVersionString: "$(EC_WRAPPER_VERSION)"
+        CFBundleVersion: "$(EC_WRAPPER_VERSION)"
+        NSHumanReadableCopyright: "Copyright © 2026 SAP. All rights reserved."
+    settings:
+      base:
+        PRODUCT_NAME: EngagementCloudSDKUnity
+        PRODUCT_BUNDLE_IDENTIFIER: com.sap.ec.unity.shim
+        WRAPPER_EXTENSION: bundle
+        MACH_O_TYPE: mh_bundle
+        EXECUTABLE_PREFIX: ""
+        DEFINES_MODULE: NO
+        # Preprocessor defines: EC_WRAPPER_VERSION is a quoted string like
+        # "0.1.0". Gradle passes the correct value; local builds get "dev".
+        GCC_PREPROCESSOR_DEFINITIONS:
+          - "$(inherited)"
+          - "EC_WRAPPER_VERSION=\\\"$(EC_WRAPPER_VERSION_STR)\\\""
+    dependencies:
+      - framework: EngagementCloudSDK.framework
+        embed: false
+      - framework: EngagementCloudSDKUnityKotlin.framework
+        embed: false
+    frameworks:
+      - Foundation.framework
+      - AppKit.framework
+      - WebKit.framework
+      - IOSurface.framework
+      - CoreGraphics.framework
+      - QuartzCore.framework
