@@ -1,9 +1,11 @@
 package com.sap.ec.unity
 
-import com.sap.ec.core.log.Logger
+import com.sap.ec.di.DispatcherTypes
 import com.sap.ec.di.SdkPlatformOverrides
 import com.sap.ec.mobileengage.inapp.presentation.InAppPresenterApi
+import kotlinx.coroutines.CoroutineDispatcher
 import org.koin.core.parameter.parametersOf
+import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
 /**
@@ -13,7 +15,7 @@ import org.koin.dsl.module
  *
  * Exported to Obj-C as class `EngagementCloudUnityBridge` (see `@ObjCName`).
  * The shim's bundle-load path is:
- *   `[EngagementCloudUnityBridge registerOverrides]`
+ *   `[EngagementCloudUnityBridge shared registerOverrides]`
  * before dispatching any `ec_*` entry point.
  */
 @ObjCName("EngagementCloudUnityBridge")
@@ -22,6 +24,7 @@ object UnityBridge {
     private val unityMacosModule = module {
         single<InAppPresenterApi> {
             UnityMacosInAppPresenter(
+                mainDispatcher = get<CoroutineDispatcher>(named(DispatcherTypes.Main)),
                 logger = get { parametersOf(UnityMacosInAppPresenter::class.simpleName) }
             )
         }
@@ -37,3 +40,4 @@ object UnityBridge {
         SdkPlatformOverrides.register(listOf(unityMacosModule))
     }
 }
+

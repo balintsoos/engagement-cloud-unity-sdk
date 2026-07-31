@@ -199,7 +199,7 @@ internal object CoreInjection {
     }
 }
 
-internal enum class DispatcherTypes {
+enum class DispatcherTypes {
     Sdk, Main
 }
 

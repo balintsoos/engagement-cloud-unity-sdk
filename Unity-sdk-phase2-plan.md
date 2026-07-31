@@ -131,7 +131,7 @@ exceptions.
 | 4 | Data serialization | **Scalars as C scalars; complex types (incl. `SdkEvent` sealed hierarchy) as JSON strings** via `kotlinx.serialization` ↔ `System.Text.Json` |
 | 5 | Main-thread dispatch | Auto-instantiated hidden **`MonoBehaviour` pump** drains `ConcurrentQueue<Action>` in `Update()`; all C# continuations resume on Unity's main thread |
 | 6 | SdkEvent surface | **`public static event Action<SdkEvent> EventReceived`** with hand-written C# hierarchy mirroring Kotlin sealed type |
-| 7 | In-app messages | **Rendered as `Texture2D`s** via WKWebView → CALayer/IOSurface → Unity Metal external texture (zero-copy). Mouse input translated to synthesized `NSEvent`s. No text/keyboard input in v1 |
+| 7 | In-app messages | **Rendered as `Texture2D`s** via WKWebView snapshot → shim-owned IOSurface → Unity Metal external texture. Not zero-copy in v1 (see Section C revision — `renderInContext` misses out-of-process WebContent). ~30 fps snapshot cadence. Mouse input translated to synthesized `NSEvent`s. No text/keyboard input in v1 |
 | 8 | Delivery | **UPM (git URL) primary + `.unitypackage` fallback**, both from a single source folder |
 | 9 | Init flow | **`ScriptableObject` settings asset for auto-init** (`RuntimeInitializeOnLoadMethod`) + **static `EngagementCloud.Setup(applicationCode)`** for explicit control |
 | 10 | C# root namespace | `EngagementCloud` |
@@ -324,23 +324,52 @@ engagement-cloud-unity-sdk/                     (this repo)
    free after return.
 
 ### C. In-app texture presenter (`EcInAppTexturePresenter.mm`)
-1. Offscreen `NSView` with `wantsLayer = YES`, hosting a `WKWebView` sized to
-   the layer.
-2. Root `CALayer` swapped to an IOSurface-backed layer (`IOSurfaceCreate` with
-   BGRA8 + sRGB), redrawn via `renderInContext:` on invalidation (or CADisplayLink
-   ticking at Unity's render rate).
-3. `ec_inapp_texture_acquire()` returns the `IOSurfaceRef`; C# side wraps it as
-   a Metal `MTLTexture` via `MTLDevice.newTextureWithDescriptor:iosurface:plane:`
-   and hands the pointer to `Texture2D.CreateExternalTexture`.
-4. Coordinate handling: WebKit uses flipped Y; either flip in the presenter's
-   `wantsUpdateLayer` path or in the C# `UnityInAppTextureView` shader (UV flip).
-   Pre-lock: **flip in C#** — simpler, avoids stepping on WebKit's layout.
-5. Alpha: WebKit surfaces are premultiplied; C# `RawImage.material` uses the
-   premultiplied shader.
-6. Input: `ec_inapp_input_send(kind, x, y, buttons)` where `kind ∈ {Move, Down, Up}`.
-   Shim synthesizes an `NSEvent` (`mouseEventWithType:location:...`) and posts to
-   the WebView via `-[NSView mouseDown:]` / `mouseUp:` / `mouseMoved:` on the
-   main thread (dispatched via `dispatch_async(dispatch_get_main_queue())`).
+
+**Revised 2026-07-31**: Locked Decision #7's "zero-copy IOSurface-backed
+CALayer" doesn't work as-stated — `WKWebView`'s content is rendered in the
+`WebContent` XPC process, so `-[CALayer renderInContext:]` on the parent
+layer captures only the chrome, not the web content. Modern (non-SPI)
+alternatives all involve a copy. v1 uses `WKWebView.takeSnapshot(...)` on
+a display-linked tick and blits into a shim-owned IOSurface. Not
+zero-copy; adequate for typical in-app messages (open animation, static
+body, close animation).
+
+1. Offscreen `NSView` (never added to a window) with `wantsLayer = YES`,
+   hosting a `WKWebView` sized to the C#-declared viewport (default
+   1280×720; C# passes the actual size via a future
+   `ec_inapp_texture_setSize` call).
+2. Shim-owned `IOSurfaceRef` (BGRA8 + sRGB, `IOSurfaceIsGlobal` = false)
+   allocated once at the current viewport size. Wrapped into a
+   `CGBitmapContext` for blit. Reallocated when C# changes viewport.
+3. `WKWebView.takeSnapshotWithConfiguration:` fires on each display-link
+   tick (default 30 Hz, tunable via
+   `ec_inapp_texture_setTargetFps(int32_t)`). The returned `NSImage` is
+   drawn into the IOSurface's `CGBitmapContext` on the presenter's serial
+   queue.
+4. `ec_inapp_texture_acquire()` returns the `IOSurfaceRef`; C# side wraps
+   it as a Metal `MTLTexture` via
+   `MTLDevice.newTextureWithDescriptor:iosurface:plane:` and hands the
+   pointer to `Texture2D.CreateExternalTexture`.
+5. `EcPresenterFrameCallback` fires on the serial queue after each blit,
+   with a monotonically-increasing `frameIndex`. C# uses this to know
+   when a texture update landed.
+6. Coordinate handling: `takeSnapshot`'s CGImage has origin at top-left
+   (matches Unity texture convention). No UV flip needed (contrary to the
+   plan's pre-lock guess).
+7. Alpha: `takeSnapshot` returns premultiplied BGRA; the shader on the
+   C# `RawImage` uses the premultiplied shader.
+8. Input: `ec_inapp_input_send(kind, x, y, buttons)` where
+   `kind ∈ {Move, Down, Up}`. Shim synthesizes an `NSEvent`
+   (`mouseEventWithType:location:...`) and posts to the WebView via
+   `-[NSView mouseDown:]` / `mouseUp:` / `mouseMoved:` on the main
+   thread (dispatched via `dispatch_async(dispatch_get_main_queue())`).
+9. `UnityMacosInAppPresenter.present(...)` (Kotlin side, in
+   `unity-plugin/kotlin/`) hands the presented `WKWebView` to the shim's
+   presenter via an Obj-C callback that `UnityBridge` exposes:
+   `+ [EngagementCloudUnityBridge onPresentWebView:webView]`. The shim
+   moves the webview into its hidden container, hooks up the display
+   link, and starts snapshotting. On `Dismiss`, the shim tears down
+   the display link and clears the container.
 7. Koin override registered from the shim: at framework load (dlopen path in
    the bundle's `__attribute__((constructor))`, or `+load` on an Obj-C class in
    the bundle), the shim calls Kotlin's

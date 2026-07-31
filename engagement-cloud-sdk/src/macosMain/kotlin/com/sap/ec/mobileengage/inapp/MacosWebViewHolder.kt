@@ -4,7 +4,7 @@ import com.sap.ec.mobileengage.inapp.reporting.InAppLoadingMetric
 import com.sap.ec.mobileengage.inapp.webview.WebViewHolder
 import platform.WebKit.WKWebView
 
-internal data class MacosWebViewHolder(
+data class MacosWebViewHolder(
     val webView: WKWebView,
     override val metrics: InAppLoadingMetric
 ) : WebViewHolder

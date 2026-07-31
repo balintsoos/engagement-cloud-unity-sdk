@@ -14,10 +14,12 @@
 
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
+#import <WebKit/WebKit.h>
 #import <EngagementCloudSDK/EngagementCloudSDK.h>
 #import <EngagementCloudSDKUnityKotlin/EngagementCloudSDKUnityKotlin.h>
 #include <stdatomic.h>
 #include "EngagementCloudSDKUnity.h"
+#include "EcInAppTexturePresenter.h"
 
 // ---------------------------------------------------------------------------
 // Wrapper version — injected at compile time from the UPM package.json.
@@ -547,15 +549,43 @@ void ec_logger_setSink(EcLogCallback _Nullable callback) {
 }
 
 // ---------------------------------------------------------------------------
-// In-app texture presenter — Section C. Stubs remain until then.
+// In-app texture presenter — Section C.
 
 IOSurfaceRef _Nullable ec_inapp_texture_acquire(void) {
-    NSLog(@"[EngagementCloudSDKUnity] ec_inapp_texture_acquire not yet implemented (Section C)");
-    return NULL;
+    return [[EcInAppTexturePresenter shared] currentSurface];
 }
 void ec_inapp_input_send(int32_t kind, double x, double y, int32_t buttons) {
-    (void)kind; (void)x; (void)y; (void)buttons;
+    [[EcInAppTexturePresenter shared] sendInputKind:kind x:x y:y buttons:buttons];
 }
 void ec_inapp_setPresenterFrameCallback(EcPresenterFrameCallback _Nullable callback) {
-    (void)callback;
+    if (callback) {
+        [[EcInAppTexturePresenter shared] setFrameCallback:^(uint64_t idx) {
+            callback(idx);
+        }];
+    } else {
+        [[EcInAppTexturePresenter shared] setFrameCallback:nil];
+    }
 }
+
+// ---------------------------------------------------------------------------
+// Obj-C entry the Kotlin `UnityMacosInAppPresenter` calls when a message
+// starts / ends presenting. Declared here so `UnityMacosInAppPresenter.kt`
+// can reach it via Obj-C interop (looks up NSClassFromString and sends the
+// selector — no direct link dependency needed on the Kotlin side).
+
+@interface EcPresenterBridge : NSObject
++ (void)onPresentWebView:(WKWebView*)webView;
++ (void)onDismiss;
+@end
+
+@implementation EcPresenterBridge
++ (void)onPresentWebView:(WKWebView*)webView {
+    // Kotlin calls this with the webview it built via `InAppViewApi`. Size is
+    // whatever the C# side told us (default 1280x720 for now — see the plan's
+    // Section C note about a future `ec_inapp_texture_setSize`).
+    [[EcInAppTexturePresenter shared] attachWebView:webView width:0 height:0];
+}
++ (void)onDismiss {
+    [[EcInAppTexturePresenter shared] detachWebView];
+}
+@end
