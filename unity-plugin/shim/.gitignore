@@ -1,5 +1,6 @@
 # xcodegen output (regenerated from project.yml)
 EngagementCloudSDKUnity.xcodeproj/
+EngagementCloudSDKUnity-Info.plist
 
 # Local build artifacts
 .build/
