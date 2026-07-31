@@ -1,0 +1,14 @@
+<linker>
+  <!--
+    IL2CPP stripping preservation for the Unity plugin.
+    - All MonoPInvokeCallback statics MUST survive stripping; the shim invokes them via raw
+      function pointers so the linker can't see the reachable path.
+    - The SdkEvent hierarchy is deserialised via reflection through System.Text.Json; keep the
+      concrete subclasses so their constructors and property setters aren't stripped.
+    - The EngagementCloudException subclasses are constructed via `Activator`-like switch
+      dispatch in FromJson — keep them for the same reason.
+  -->
+  <assembly fullname="EngagementCloud.Runtime" preserve="all"/>
+  <assembly fullname="System.Text.Json"        preserve="all"/>
+  <assembly fullname="System.Text.Encodings.Web" preserve="all"/>
+</linker>

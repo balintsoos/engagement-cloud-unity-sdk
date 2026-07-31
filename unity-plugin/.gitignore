@@ -1,0 +1,15 @@
+# Unity Editor generated
+UnityProject/Library/
+UnityProject/Temp/
+UnityProject/Logs/
+UnityProject/UserSettings/
+UnityProject/obj/
+UnityProject/*.csproj
+UnityProject/*.sln
+
+# shim build output — regenerable from build.sh
+shim/build/
+
+# staged native plugins (built by shim/build.sh) — regenerable
+com.sap.ec.unity/Plugins/macOS/EngagementCloudSDK.framework
+com.sap.ec.unity/Plugins/macOS/EngagementCloudSDKUnity.bundle

@@ -1,0 +1,15 @@
+{
+  "name": "com.sap.ec.unity",
+  "displayName": "SAP Engagement Cloud SDK",
+  "version": "0.1.0-poc",
+  "unity": "6000.0",
+  "description": "Unity plugin for the SAP Engagement Cloud mobile SDK. macOS-only POC (Apple Silicon).",
+  "keywords": ["sap", "engagement", "cloud", "sdk", "marketing", "in-app"],
+  "author": {
+    "name": "SAP SE"
+  },
+  "samples": [
+    { "displayName": "Setup",  "description": "Enable the SDK from a scene.", "path": "Samples~/Setup" },
+    { "displayName": "Event",  "description": "Fire a custom event that triggers an in-app.", "path": "Samples~/Event" }
+  ]
+}

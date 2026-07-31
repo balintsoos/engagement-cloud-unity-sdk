@@ -71,6 +71,12 @@ object SdkKoinIsolationContext {
 
     private fun initKoin() {
         koinApp.koin.loadModules(loadPlatformModules())
+        // Phase-2 wrapper hook: modules registered via SdkPlatformOverrides.register(…)
+        // land AFTER platform modules so `override = true` bindings win.
+        val overrides = SdkPlatformOverrides.registeredModules
+        if (overrides.isNotEmpty()) {
+            koinApp.koin.loadModules(overrides, allowOverride = true)
+        }
         runningApp = startKoin(koinApp)
 
     }

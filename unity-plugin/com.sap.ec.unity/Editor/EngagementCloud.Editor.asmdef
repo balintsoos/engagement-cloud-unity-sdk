@@ -1,0 +1,8 @@
+{
+    "name": "EngagementCloud.Editor",
+    "rootNamespace": "EngagementCloud.Editor",
+    "references": ["EngagementCloud.Runtime"],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "autoReferenced": true
+}
