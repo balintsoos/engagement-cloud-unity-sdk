@@ -35,7 +35,11 @@ internal actual class DeviceInfoCollector(
 
     actual override suspend fun collectAsDeviceInfo(): DeviceInfo {
         return DeviceInfo(
-            KotlinPlatform.MACOS.name.lowercase(),
+            // Phase-1 shim: report as "ios" so the backend accepts session-start. Native
+            // macOS platform support isn't yet wired server-side; masquerading as iOS is the
+            // cheapest way to unblock end-to-end sample-app verification. Revisit once the
+            // backend gains real macOS handling.
+            platform = KotlinPlatform.IOS.name.lowercase(),
             platformCategory = platformCategoryProvider.provide(),
             platformWrapper = getWrapperInfo()?.platformWrapper,
             platformWrapperVersion = getWrapperInfo()?.wrapperVersion,

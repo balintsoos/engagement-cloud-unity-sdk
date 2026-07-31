@@ -7,14 +7,17 @@ import EngagementCloudSDK
 // The application code below is a placeholder ("EMSE3-B4341", matching the iosApp sample).
 // Replace with a real code from your Engagement Cloud environment when validating real traffic.
 
-@main
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow!
     private var statusLabel: NSTextField!
     private let engagementCloud = EngagementCloud.shared
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSLog("macosApp: applicationDidFinishLaunching")
+        NSApp.setActivationPolicy(.regular)
         buildUI()
+        window.center()
+        window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -63,7 +66,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             stack.bottomAnchor.constraint(lessThanOrEqualTo: container.bottomAnchor)
         ])
         window.contentView = container
-        window.makeKeyAndOrderFront(nil)
     }
 
     private func status(_ message: String) {
@@ -123,3 +125,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         status("Trigger an in-app message from your EC campaign dashboard while this app is running.")
     }
 }
+
+// Explicit AppKit boot — @main on NSApplicationDelegate does not always wire NSApp.delegate,
+// so we do it by hand so the delegate methods actually fire.
+let app = NSApplication.shared
+let delegate = AppDelegate()
+app.delegate = delegate
+app.setActivationPolicy(.regular)
+app.run()

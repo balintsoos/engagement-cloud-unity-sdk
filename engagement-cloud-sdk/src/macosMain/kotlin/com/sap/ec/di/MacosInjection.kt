@@ -10,6 +10,8 @@ import com.sap.ec.api.deeplink.MacosDeepLink
 import com.sap.ec.api.deeplink.MacosDeepLinkApi
 import com.sap.ec.api.inapp.MacosInApp
 import com.sap.ec.api.inapp.MacosInAppApi
+import com.sap.ec.api.push.MacosPush
+import com.sap.ec.api.push.PushApi
 import com.sap.ec.api.setup.MacosSetup
 import com.sap.ec.api.setup.MacosSetupApi
 import com.sap.ec.api.tracking.MacosTracking
@@ -102,6 +104,10 @@ internal object MacosInjection {
         }
         single<PermissionHandlerApi> { MacosPermissionHandler() }
         single<UIDeviceApi> { UIDevice(NSProcessInfo()) }
+
+        // Phase-1 decision #5: push is not exposed on macOS. Provide a no-op PushApi so the
+        // shared init graph (RegisterInstancesState) can be constructed.
+        single<PushApi> { MacosPush() }
 
         single<PageLocationProviderApi> { PageLocationProvider() }
         single<PlatformCategoryProviderApi> { PlatformCategoryProvider() }

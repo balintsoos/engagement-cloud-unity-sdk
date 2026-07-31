@@ -38,7 +38,6 @@ cp -R "$FRAMEWORK" "$FRAMEWORKS_DIR/"
 # Compile with @rpath/Frameworks so the loader finds the framework next to the exe.
 xcrun swiftc \
   -target arm64-apple-macos13 \
-  -parse-as-library \
   -F "$FRAMEWORK_DIR" \
   -framework EngagementCloudSDK \
   -Xlinker -rpath -Xlinker '@executable_path/../Frameworks' \
