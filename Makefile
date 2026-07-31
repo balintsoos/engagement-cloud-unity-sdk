@@ -1,4 +1,4 @@
-.PHONY: build build-pipeline build-android build-ios build-ios-all-archtypes build-js-html build-web check-env clean create-apks help lint pipeline-android pipeline-js pipeline-ios prepare-release prepare-local-spm publish-android publish-ios-spm publish-npm release release-locally stage-maven-central test test-android test-android-firebase test-ios test-sdk-loader test-web add-privacy-manifest-to-frameworks assemble-npm-package fix-npm-typescript-brand-fields unity-shim unity-copy unity-package unity-unitypackage unity-clean
+.PHONY: build build-pipeline build-android build-ios build-ios-all-archtypes build-js-html build-web check-env clean create-apks help lint pipeline-android pipeline-js pipeline-ios prepare-release prepare-local-spm publish-android publish-ios-spm publish-npm release release-locally stage-maven-central test test-android test-android-firebase test-ios test-sdk-loader test-web add-privacy-manifest-to-frameworks assemble-npm-package fix-npm-typescript-brand-fields unity-shim unity-copy unity-package unity-unitypackage unity-clean unity-release unity-release-dryrun
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
 
@@ -37,6 +37,8 @@ help:
 	@echo "  unity-package               - Build the UPM tarball (dist/com.sap.ec.unity-<version>.tgz)"
 	@echo "  unity-unitypackage          - Also export a legacy .unitypackage (requires UNITY_PATH env var)"
 	@echo "  unity-clean                 - Clean Unity plugin build outputs"
+	@echo "  unity-release-dryrun        - Print what unity-release would do without doing it"
+	@echo "  unity-release               - Build + create a GitHub release tagged unity-v<version>"
 
 clean-dist:
 	@rm -rf dist
@@ -252,3 +254,82 @@ unity-clean:
 	        unity-plugin/com.sap.ec.unity/Plugins/macOS/*.bundle \
 	        unity-plugin/com.sap.ec.unity/Plugins/macOS/*.dSYM \
 	        dist/com.sap.ec.unity-*.tgz dist/EngagementCloud-*.unitypackage
+
+# -----------------------------------------------------------------------------
+# Unity plugin release publishing.
+#
+# Reads the version from unity-plugin/com.sap.ec.unity/package.json, builds the
+# UPM tarball (and .unitypackage if UNITY_PATH is set), then invokes `gh` to
+# create a GitHub release tagged `unity-v<version>` and upload the artifacts.
+#
+# Requirements:
+#   - gh CLI installed (brew install gh) and authenticated (`gh auth login`).
+#   - Working tree must be clean (no uncommitted changes) and on `main`.
+#   - The tag `unity-v<version>` must not already exist.
+#
+# Usage:
+#   make unity-release-dryrun   # preview
+#   make unity-release          # actually publishes
+#
+# Bump the version in unity-plugin/com.sap.ec.unity/package.json before
+# running these — the tag comes from that file, so a stale version means
+# a stale tag.
+
+UNITY_VERSION := $(shell sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' unity-plugin/com.sap.ec.unity/package.json)
+UNITY_TAG := unity-v$(UNITY_VERSION)
+UNITY_TGZ := dist/com.sap.ec.unity-$(UNITY_VERSION).tgz
+UNITY_UNITYPACKAGE := dist/EngagementCloud-$(UNITY_VERSION).unitypackage
+
+unity-release-dryrun:
+	@echo "Version (from package.json): $(UNITY_VERSION)"
+	@echo "Tag:                         $(UNITY_TAG)"
+	@echo "Tarball:                     $(UNITY_TGZ)"
+	@echo "unitypackage (optional):     $(UNITY_UNITYPACKAGE)"
+	@echo ""
+	@echo "Would run:"
+	@echo "  1. make unity-package"
+	@if [ -n "$$UNITY_PATH" ]; then \
+		echo "  2. make unity-unitypackage  (UNITY_PATH is set)"; \
+	else \
+		echo "  2. skip unity-unitypackage  (UNITY_PATH not set)"; \
+	fi
+	@echo "  3. gh release create $(UNITY_TAG) $(UNITY_TGZ) [+ .unitypackage if built]"
+	@echo ""
+	@echo "Preflight checks:"
+	@command -v gh >/dev/null 2>&1 && echo "  gh: OK" || echo "  gh: MISSING (brew install gh)"
+	@gh auth status >/dev/null 2>&1 && echo "  gh auth: OK" || echo "  gh auth: NOT AUTHENTICATED (run: gh auth login)"
+	@[ -z "$$(git status --porcelain)" ] && echo "  working tree: clean" || echo "  working tree: DIRTY (commit first)"
+	@BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
+		[ "$$BRANCH" = "main" ] && echo "  branch: main" || echo "  branch: $$BRANCH (unusual — usually release from main)"
+	@if git rev-parse "$(UNITY_TAG)" >/dev/null 2>&1; then \
+		echo "  tag $(UNITY_TAG): ALREADY EXISTS (bump version in package.json)"; \
+	else \
+		echo "  tag $(UNITY_TAG): available"; \
+	fi
+
+unity-release:
+	@command -v gh >/dev/null 2>&1 || { echo "gh not found. Install with: brew install gh" >&2; exit 1; }
+	@gh auth status >/dev/null 2>&1 || { echo "gh is not authenticated. Run: gh auth login" >&2; exit 1; }
+	@[ -z "$$(git status --porcelain)" ] || { echo "Working tree has uncommitted changes. Commit or stash first." >&2; exit 1; }
+	@if git rev-parse "$(UNITY_TAG)" >/dev/null 2>&1; then \
+		echo "Tag $(UNITY_TAG) already exists. Bump the version in unity-plugin/com.sap.ec.unity/package.json first." >&2; \
+		exit 1; \
+	fi
+	@echo "==> Building UPM tarball..."
+	@$(MAKE) --no-print-directory unity-package
+	@if [ -n "$$UNITY_PATH" ]; then \
+		echo "==> Building .unitypackage (UNITY_PATH is set)..."; \
+		$(MAKE) --no-print-directory unity-unitypackage; \
+	else \
+		echo "==> Skipping .unitypackage (UNITY_PATH not set; only .tgz will be uploaded)"; \
+	fi
+	@[ -f "$(UNITY_TGZ)" ] || { echo "Expected $(UNITY_TGZ) after build, but it's missing." >&2; exit 1; }
+	@echo "==> Creating GitHub release $(UNITY_TAG)..."
+	@REL_ARGS="$(UNITY_TGZ)"; \
+		if [ -f "$(UNITY_UNITYPACKAGE)" ]; then REL_ARGS="$$REL_ARGS $(UNITY_UNITYPACKAGE)"; fi; \
+		gh release create "$(UNITY_TAG)" $$REL_ARGS \
+			--title "SAP Engagement Cloud Unity Plugin $(UNITY_VERSION)" \
+			--notes-file .github/release-notes/unity-plugin.md \
+			--target $$(git rev-parse HEAD)
+	@echo ""
+	@echo "Released: https://github.com/emartech/engagement-cloud-unity-sdk/releases/tag/$(UNITY_TAG)"
