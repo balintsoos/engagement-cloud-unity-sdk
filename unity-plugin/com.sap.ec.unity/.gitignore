@@ -1,0 +1,11 @@
+# Native plugin outputs staged here by `./gradlew copyUnityNativePlugins`
+# (Section F build orchestration). The macOS `.framework` and `.bundle`
+# artifacts are large and reproducible from source; don't check them in.
+Plugins/macOS/*.framework
+Plugins/macOS/*.bundle
+Plugins/macOS/*.dSYM
+
+# Unity generates .meta files on first import; those SHOULD be checked in
+# once the package is imported into a Unity project (they carry GUIDs).
+# During pre-Unity development we don't want spurious .meta files from
+# other tooling to leak in.

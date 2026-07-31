@@ -1,0 +1,17 @@
+{
+    "name": "EngagementCloud.Runtime",
+    "rootNamespace": "EngagementCloud",
+    "references": [],
+    "includePlatforms": [
+        "Editor",
+        "macOSStandalone"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

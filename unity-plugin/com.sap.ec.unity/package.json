@@ -1,0 +1,50 @@
+{
+  "name": "com.sap.ec.unity",
+  "version": "0.1.0-dev",
+  "displayName": "SAP Engagement Cloud",
+  "description": "Unity plugin for the SAP Engagement Cloud SDK on macOS. Setup, contact, event, in-app messaging, config, and deep-link APIs. In-app messages composite into Unity's rendering as Texture2D.",
+  "unity": "6000.0",
+  "keywords": [
+    "sap",
+    "engagement-cloud",
+    "analytics",
+    "in-app-messaging",
+    "sdk"
+  ],
+  "author": {
+    "name": "SAP"
+  },
+  "license": "Apache-2.0",
+  "samples": [
+    {
+      "displayName": "Setup",
+      "description": "Minimal scene showing EngagementCloud.Setup(applicationCode).",
+      "path": "Samples~/Setup"
+    },
+    {
+      "displayName": "Contact",
+      "description": "Link and unlink contacts.",
+      "path": "Samples~/Contact"
+    },
+    {
+      "displayName": "Event",
+      "description": "Track custom events with string attributes.",
+      "path": "Samples~/Event"
+    },
+    {
+      "displayName": "In-App",
+      "description": "Display an in-app message as a Unity Texture2D.",
+      "path": "Samples~/InApp"
+    },
+    {
+      "displayName": "Config",
+      "description": "Read/write config values (application code, language, SDK version).",
+      "path": "Samples~/Config"
+    },
+    {
+      "displayName": "DeepLink",
+      "description": "Forward a URL to the SDK's deep-link handler.",
+      "path": "Samples~/DeepLink"
+    }
+  ]
+}

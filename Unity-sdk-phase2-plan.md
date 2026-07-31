@@ -545,18 +545,24 @@ body, close animation).
   `linkReleaseFrameworkMacosArm64` verified green.
 - Kotlin sub-module `unity-plugin/kotlin/` in place (commit `3c3308c8`):
   `EngagementCloudSDKUnityKotlin.framework` builds and exports
-  `EngagementCloudUnityBridge` + `UnityMacosInAppPresenter` (stub — real
-  IOSurface path is Section C).
-- Native shim `unity-plugin/shim/` in place: xcodegen `project.yml`,
-  Obj-C++ `.mm` with 24 exported `ec_*` entry points implementing setup,
-  contact (link/linkAuthenticated/unlink), event track (string→string
-  attrs), in-app pause/resume/isPaused, all 9 config accessors, deep-link
-  track, events sink (minimal JSON), logger sink (no-op — held). Section C
-  entry points (`ec_inapp_texture_acquire`, `_input_send`,
-  `_setPresenterFrameCallback`) are still stubs. Bundle verified via
-  `build-local.sh` on Xcode 26.5, `nm -gU` confirms all 24 symbols.
-- Sections C–H not started. Two follow-ups deferred inside Section B:
-  (1) richer per-variant `SdkEvent` JSON serialization (currently only
-  emits type + description); (2) logger sink wiring — needs a small
-  Phase-1 patch to expose the `Logger` / `LogSink` interface (mirror of
-  `SdkPlatformOverrides`).
+  `EngagementCloudUnityBridge` + `UnityMacosInAppPresenter` (Section C wired).
+- Native shim `unity-plugin/shim/` — sections B and C in place (commits
+  `7339fdd4`, `b531affc`, `e202d48b`). 24 exported `ec_*` symbols; texture
+  presenter using WKWebView snapshot → IOSurface at 30 Hz.
+- **Section D — C# runtime**: UPM package `unity-plugin/com.sap.ec.unity/`
+  with `EngagementCloud.Runtime` asmdef. Static facade
+  `EngagementCloud.EngagementCloud` covers all shim entry points. Includes:
+  `NativeBridge` (P/Invoke), `RequestRegistry` (id → TCS), `MainThreadPump`
+  (drain queue in Update), `CallbackDispatchers` (`[MonoPInvokeCallback]`
+  statics), `EngagementCloudException` hierarchy (12 mapped types),
+  `SdkEvent` (v1: type+description), `EngagementCloudSettings`
+  ScriptableObject, `AutoInit`, `UnityInAppTextureView` (RawImage +
+  IOSurface external Texture2D + pointer forwarding), `SdkState` enum,
+  `link.xml`. Six sample scenes under `Samples~/`.
+- Sections E–H not started. Deferred inside Section D:
+  - Richer `SdkEvent` variants — v1 exposes only type+description, matching
+    what the shim currently serializes. When shim emits per-variant JSON,
+    add typed C# subclasses.
+  - Contact-linking-failed callback surface — v1's shim uses a no-op.
+  - Dynamic viewport sizing — `UnityInAppTextureView` hard-codes 1280x720
+    to match the shim's default.

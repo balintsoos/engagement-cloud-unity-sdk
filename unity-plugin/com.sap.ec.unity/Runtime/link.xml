@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+IL2CPP preserves these members so they survive `link.xml`-driven stripping.
+
+Rationale:
+- P/Invoke completion callbacks pass native function pointers that IL2CPP
+  can't statically prove are reachable from managed code. Preserve every
+  static method annotated with `[AOT.MonoPInvokeCallback]`.
+- `System.Text.Json` uses reflection to walk the `SdkEvent` polymorphic
+  hierarchy and `EngagementCloudException` subclasses. Preserving these
+  types (and their public members) prevents "field/method not found" at
+  runtime.
+-->
+<linker>
+  <assembly fullname="EngagementCloud.Runtime">
+    <type fullname="EngagementCloud.Internal.CallbackDispatchers" preserve="all"/>
+    <type fullname="EngagementCloud.Internal.NativeBridge" preserve="all"/>
+    <type fullname="EngagementCloud.Internal.RequestRegistry" preserve="all"/>
+    <type fullname="EngagementCloud.Internal.MainThreadPump" preserve="all"/>
+    <type fullname="EngagementCloud.EngagementCloud" preserve="all"/>
+    <type fullname="EngagementCloud.SdkEvent" preserve="all"/>
+    <type fullname="EngagementCloud.EngagementCloudException" preserve="all"/>
+    <namespace fullname="EngagementCloud" preserve="all"/>
+    <namespace fullname="EngagementCloud.Internal" preserve="all"/>
+  </assembly>
+</linker>
