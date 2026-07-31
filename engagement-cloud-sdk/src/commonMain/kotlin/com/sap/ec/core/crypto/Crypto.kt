@@ -44,6 +44,10 @@ internal class Crypto(
             KotlinPlatform.IOS -> {
                 ECDSA.SignatureFormat.DER to Base64.decode(signatureStr)
             }
+
+            KotlinPlatform.MACOS -> {
+                ECDSA.SignatureFormat.DER to Base64.decode(signatureStr)
+            }
         }
         val verifier = decodedKey.signatureVerifier(SHA256, format)
 

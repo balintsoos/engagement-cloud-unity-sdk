@@ -161,6 +161,13 @@ kotlin {
         }
     }
 
+    if (isMac) {
+        macosArm64().binaries.framework {
+            baseName = "EngagementCloudSDK"
+            isStatic = false
+        }
+    }
+
     sourceSets {
         val commonMain by getting {
             dependencies {
@@ -174,7 +181,6 @@ kotlin {
                 implementation(libs.cryptography.core)
                 implementation(libs.compose.runtime)
                 implementation(libs.androidx.paging.common)
-                implementation(libs.androidx.paging.compose)
             }
         }
         val commonTest by getting {
@@ -198,6 +204,7 @@ kotlin {
                 implementation(libs.compose.plugin.ui.tooling.preview)
                 implementation(libs.compose.material.icons)
                 implementation(libs.androidx.lifecycle.runtime)
+                implementation(libs.androidx.paging.compose)
 
                 implementation(libs.compose.adaptive)
                 implementation(libs.compose.adaptive.navigation)
@@ -254,6 +261,23 @@ kotlin {
                 }
             }
             val iosTest by getting {
+                dependencies {
+                    implementation(libs.kotlin.test)
+                    implementation(libs.kotest.assertions.table)
+                    implementation(libs.kotlinx.coroutines.test)
+                }
+            }
+            val macosMain by getting {
+                dependsOn(commonMain)
+                dependencies {
+                    implementation(libs.ktor.client.apple)
+                    implementation(libs.cryptography.provider.apple)
+                    implementation(libs.sqlDelight.native)
+                    implementation(libs.kotlinx.coroutines.core)
+                    implementation(libs.kotlinx.datetime)
+                }
+            }
+            val macosTest by getting {
                 dependencies {
                     implementation(libs.kotlin.test)
                     implementation(libs.kotest.assertions.table)

@@ -1,0 +1,55 @@
+package com.sap.ec.core.log
+
+import com.sap.ec.InternalSdkApi
+import kotlinx.serialization.json.JsonObject
+
+@InternalSdkApi
+actual class ConsoleLogger : ConsoleLoggerApi {
+    actual override fun logToConsole(
+        loggerName: String,
+        level: LogLevel,
+        message: String?,
+        throwable: Throwable?,
+        data: JsonObject
+    ) {
+        val logString = createLogString(loggerName, level, message, throwable, data)
+        val color = getLogColor(level)
+        println(colorizeLog(logString, color))
+    }
+
+    private fun createLogString(
+        loggerName: String,
+        level: LogLevel,
+        message: String?,
+        throwable: Throwable?,
+        data: JsonObject
+    ): String {
+        var logString = "${level.name.uppercase()} (EngagementCloudSDK) - $loggerName: {"
+        message?.let {
+            logString = "$logString message: $message,"
+        }
+        throwable?.let {
+            logString = "$logString reason: ${it.cause}, stackTrace: ${it.stackTraceToString()},"
+        }
+        data.let {
+            if (it.isNotEmpty()) {
+                logString = "$logString data: $it"
+            }
+        }
+        return "$logString }"
+    }
+
+    private fun colorizeLog(log: String, color: String): String {
+        return log.split("\n").joinToString("\n") { "$color$it${"[0m"}" }
+    }
+
+    private fun getLogColor(level: LogLevel): String {
+        return when (level) {
+            LogLevel.Info -> "[0m"
+            LogLevel.Trace -> "[35m"
+            LogLevel.Debug -> "[34m"
+            LogLevel.Error -> "[31m"
+            LogLevel.Metric -> "[30m"
+        }
+    }
+}

@@ -1,0 +1,47 @@
+package com.sap.ec.core.watchdog.lifecycle
+
+import com.sap.ec.core.lifecycle.LifecycleEvent
+import com.sap.ec.watchdog.lifecycle.LifecycleWatchDog
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.launch
+import platform.AppKit.NSApplicationDidBecomeActiveNotification
+import platform.AppKit.NSApplicationDidResignActiveNotification
+import platform.Foundation.NSNotificationCenter
+
+/**
+ * macOS analog to `IosLifecycleWatchdog` — swaps UIApplication notifications for their
+ * NSApplication counterparts. `DidResignActive` is the closest macOS parallel to iOS's
+ * `DidEnterBackground` for a windowed desktop app.
+ */
+internal class MacosLifecycleWatchdog : LifecycleWatchDog {
+
+    private val _lifecycleEvents = MutableSharedFlow<LifecycleEvent>()
+    override val lifecycleEvents: SharedFlow<LifecycleEvent> get() = _lifecycleEvents
+
+    override suspend fun register() {
+        NSNotificationCenter.defaultCenter.addObserverForName(
+            name = NSApplicationDidBecomeActiveNotification,
+            `object` = null,
+            queue = null
+        ) { _ ->
+            notifyLifecycleEvent(LifecycleEvent.OnForeground)
+        }
+
+        NSNotificationCenter.defaultCenter.addObserverForName(
+            name = NSApplicationDidResignActiveNotification,
+            `object` = null,
+            queue = null
+        ) { _ ->
+            notifyLifecycleEvent(LifecycleEvent.OnBackground)
+        }
+    }
+
+    private fun notifyLifecycleEvent(event: LifecycleEvent) {
+        CoroutineScope(Dispatchers.Main).launch {
+            _lifecycleEvents.emit(event)
+        }
+    }
+}
